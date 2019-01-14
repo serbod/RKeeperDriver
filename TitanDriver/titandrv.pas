@@ -72,18 +72,26 @@ type
      and server to avoid chosen plaintext attacks, to provide mutual
      authentication, and to provide some message integrity protection }
     cnonce: string;
+    response: string;
+
+    IntNC: Integer;
+    OldNonce: string;
+    OldCnonce: string;
   end;
 
   TFrRequest = class(TObject)
     Session: TFrSession;
     { момент времени отправки запроса }
     SendTimestamp: TDateTime;
+    { тип запроса }
+    RequestType: Integer;
     { URL запроса }
     RequestUrl: string;
     { данные запроса }
     RequestJson: string;
     { данные результата }
     ResultJson: string;
+    ResultHeaders: string;
   end;
 
   TFrDocType = (frdUncnown, frdFiscal, frdRefund, frdCashIO, frdVoiding, frdNonFiscal, frdCopy, frdOrder, frdOrderCancel);
@@ -163,12 +171,31 @@ type
     Err: string;
   end;
 
+  TFrDocInfo = record
+    // Номер документа, 0 - неопределен
+    DocNum: Integer;
+    TotalSum: Currency;
+    DateTime: TDateTime;
+    OpNum: Integer;
+    UID: string;
+    // для несохраненного документа
+    DocState: Integer;
+    RepNum: Integer;
+  end;
+
+  TFrRecListInfo = record
+    TotalCount: Integer;
+    FreeCount: Integer;
+  end;
+
   { TTitanDriver }
 
   TTitanDriver = class(TComponent)
   private
+    // создаются сразу
     FFrAddrList: TStringList;
-
+    // создаются в процессе работы
+    FSession: TFrSession;
     FDataPortUdp: TDataPortUDP;
 
     FDevAddr: string;
@@ -177,9 +204,18 @@ type
     FDataPort: TDataPort;
 
     FDevInfo: TFrDevInfo;
+    FLastDocInfo: TFrDocInfo;
+    FCurDocInfo: TFrDocInfo;
 
-    procedure SendRequest(AUrl, AJson: string);
+    FFmRoomInfo: TFrRecListInfo;
+    FJrnRoomInfo: TFrRecListInfo;
 
+    procedure SendAuth(ARequest: TFrRequest);
+
+    procedure SendRequest(AReqType: Integer; AUrl, AJson: string);
+
+    { разбор ответа на запрос }
+    procedure ParseReqResult(AReqType: Integer; AData: IDataStorage);
     { прочитать идентификацию устройства в FrDevInfo }
     procedure ParseDevInfo(AData: IDataStorage);
     { прочитать состояние устройства в FrDevInfo }
@@ -202,24 +238,26 @@ type
     { информация по последнем зарегистрированном документе }
     //procedure LastReceipt();
     { открытие денежного ящика }
-    //procedure OpenBox();
+    procedure OpenBox();
     { печать отчета с БЭП }
-    //procedure PrintFMReport(AReportType: Integer; ADateStart, ADateEnd: TDateTime;
-    //  ANumStart, ANumEnd: Integer);
+    procedure PrintFMReport(AReportType: Integer; ADateStart, ADateEnd: TDateTime;
+      ANumStart, ANumEnd: Integer);
     { печать отчета }
-    //procedure PrintReport(AReportType: Integer);
+    procedure PrintReport(AReportType: Integer);
     { перерегистрация }
     //procedure PutHdrFM();
     {  запись налоговых ставок в БЭП }
     //procedure PutTaxFM();
     { установка времени }
-    //procedure SetClock(ADateTime: TDateTime);
+    procedure SetClock(ADateTime: TDateTime);
     { состояние модуля СКНО }
     //procedure SknoState();
     { звуковой сигнал }
-    //procedure Sound(ALen, AFreq: Integer);
+    procedure Sound(ALen, AFreq: Integer);
     { состояние текущего документа }
-    //procedure State();
+    procedure GetDocState();
+    { запросить состояние ФП }
+    procedure GetFMState();
 
     { Запустить обнаружение ФР в сети }
     procedure Discover();
@@ -238,29 +276,11 @@ type
 implementation
 
 uses
-  JsonStorage;
-
-function DataToJson(AData: IDataStorage): string;
-var
-  ser: TDataSerializerJson;
-begin
-  Result := '';
-  ser := TDataSerializerJson.Create();
-  try
-    Result := ser.StorageToString(AData);
-  finally
-    ser.Free();
-  end;
-end;
-
-function IsoDateToDateTime(AIsoDate: string): TDateTime;
-begin
-  //
-end;
+  JsonStorage, HttpSend, md5, DateUtils, synautil;
 
 const
 
-  { Список ошибок кассы }
+  { === коды ошибок кассы === }
   ERR_PRICE_NOT_SET    = $01; // Цена не указана
   ERR_QTY_NOT_SET      = $02; // Количество не указано
   ERR_DEP_NOT_SET      = $03; // Отдел не указан
@@ -361,6 +381,107 @@ const
   ERR_NF_DOC_OPEN      = $FD; // Нефискальный чек уже открыт
   ERR_DOC_OPEN         = $FE; // Чек уже открыт
   ERR_TAPE_FULL        = $FF; // Переполнение ленты
+
+  { === типы запросов === }
+  REQ_TYPE_DEV_INFO    = $01; // /cgi/dev_info
+  REQ_TYPE_DEV_STATE   = $02; // /cgi/state
+  REQ_TYPE_CHK         = $03; // /cgi/chk
+  REQ_TYPE_LOGO        = $04; // /cgi/logo.bmp
+  REQ_TYPE_DESC        = $05; // /desc
+  // таблицы
+  REQ_TYPE_TBL         = $10; // /cgi/tbl
+  REQ_TYPE_TBL_WHITEIP = $11; // /cgi/tbl/whiteIP
+  REQ_TYPE_TBL_OPER    = $12; // /cgi/tbl/Oper
+  REQ_TYPE_TBL_TAX     = $13; // /cgi/tbl/Tax
+  REQ_TYPE_TBL_FSK     = $14; // /cgi/tbl/Fsk
+  REQ_TYPE_TBL_FDAY    = $15; // /cgi/tbl/FDay
+  REQ_TYPE_TBL_FTAX    = $16; // /cgi/tbl/FTax
+  REQ_TYPE_TBL_FSBR    = $17; // /cgi/tbl/FSbr
+  REQ_TYPE_TBL_TCP     = $18; // /cgi/tbl/TCP
+  REQ_TYPE_TBL_SYSLOG  = $19; // /cgi/tbl/SysLog
+  REQ_TYPE_TBL_PAY     = $1A; // /cgi/tbl/Pay
+  REQ_TYPE_TBL_HDR     = $1B; // /cgi/tbl/Hdr
+  REQ_TYPE_TBL_ADM     = $1C; // /cgi/tbl/Adm
+  REQ_TYPE_TBL_FLG     = $1D; // /cgi/tbl/Flg
+  // процедуры
+  REQ_TYPE_PRINTREPORT   = $21; // /cgi/proc/printreport
+  REQ_TYPE_PRINTFMREPORT = $22; // /cgi/proс/printfmreport
+  REQ_TYPE_FEEDPAPER     = $23; // /cgi/proc/feedpaper
+  REQ_TYPE_FISCALIZATION = $24; // /cgi/proc/fiscalization
+  REQ_TYPE_GETFMROOM     = $25; // /cgi/proc/getfmroom
+  REQ_TYPE_GETJRNROOM    = $26; // /cgi/proc/getjrnroom
+  REQ_TYPE_LASTRECEIPT   = $27; // /cgi/proc/lastreceipt
+  REQ_TYPE_OPENBOX       = $28; // /cgi/proc/openbox
+  REQ_TYPE_PUTHDRFM      = $29; // /cgi/proc/puthdrfm
+  REQ_TYPE_PUTTAXFM      = $2A; // /cgi/proc/puttaxfm
+  REQ_TYPE_SETCLOCK      = $2B; // /cgi/proc/setclock
+  REQ_TYPE_SKNOSTATE     = $2C; // /cgi/proc/sknostate
+  REQ_TYPE_SOUND         = $2D; // /cgi/proc/sound
+  REQ_TYPE_PROC_STATE    = $2E; // /cgi/proc/state
+  // отчеты
+  REQ_TYPE_REP_PAY     = $31; // /cgi/rep/pay
+  //REQ_TYPE_            = $00; // /cgi/
+
+function DataToJson(AData: IDataStorage): string;
+var
+  ser: TDataSerializerJson;
+begin
+  Result := '';
+  ser := TDataSerializerJson.Create();
+  try
+    Result := ser.StorageToString(AData);
+  finally
+    ser.Free();
+  end;
+end;
+
+function JsonToData(AJson: string): IDataStorage;
+var
+  ser: TDataSerializerJson;
+begin
+  Result := nil;
+  ser := TDataSerializerJson.Create();
+  try
+    Result := ser.StorageFromString(AJson);
+  finally
+    ser.Free();
+  end;
+end;
+
+function IsoDateToDateTime(AIsoDate: string): TDateTime;
+begin
+  //
+end;
+
+function DateTimeToIso(ADateTime: TDateTime): string;
+begin
+  Result := FormatDateTime('yyyy-mm-ddThh:nn:ss', ADateTime);
+end;
+
+function DateToIso(ADateTime: TDateTime): string;
+begin
+  Result := FormatDateTime('yyyy-mm-dd', ADateTime);
+end;
+
+function StripQuotes(StrIn: string): string;
+begin
+  Result := StringReplace(StrIn,'"', '', [rfReplaceAll]);
+end;
+
+procedure SetDefaultHeaders(var AHttpSend: THttpSend);
+begin
+  AHttpSend.Clear();
+  AHttpSend.Headers.Clear();
+  AHttpSend.Protocol := '1.1';
+  AHttpSend.Headers.Add('User-Agent: serbod');
+
+  //AHttpSend.Headers.Add('Connection: keep-alive');
+  //AHttpSend.Headers.Add('User-Agent: Mozilla/5.0 (X11; Linux i686; rv:9.0) Gecko/20100101 Firefox/9.0');
+  //AHttpSend.Headers.Add('Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8');
+  //AHttpSend.Headers.Add('Accept-Language: en-us,en;q=0.5');
+  //AHttpSend.Headers.Add('Accept-Encoding: gzip, deflate');
+  //AHttpSend.Headers.Add('Accept-Charset: ISO-8859-1,utf-8;q=0.7,*;q=0.7');
+end;
 
 { TFrDoc }
 
@@ -633,15 +754,269 @@ begin
   inherited BeforeDestruction();
 end;
 
-procedure TTitanDriver.SendRequest(AUrl, AJson: string);
+procedure TTitanDriver.OpenBox();
+begin
+  SendRequest(REQ_TYPE_OPENBOX, '/cgi/proc/openbox', '');
+end;
+
+procedure TTitanDriver.PrintFMReport(AReportType: Integer; ADateStart,
+  ADateEnd: TDateTime; ANumStart, ANumEnd: Integer);
+var
+  s: string;
+begin
+  if (AReportType < 1) or (AReportType > 4) then Exit;
+
+  s := '&' + DateToIso(ADateStart) + '&' + DateToIso(ADateStart)
+     + '&' + IntToStr(ANumStart) + '&' + IntToStr(ANumEnd);
+  SendRequest(REQ_TYPE_PRINTFMREPORT, '/cgi/proc/printfmreport?' + IntToStr(AReportType) + s, '');
+end;
+
+procedure TTitanDriver.PrintReport(AReportType: Integer);
+begin
+  SendRequest(REQ_TYPE_PRINTREPORT, '/cgi/proc/printreport?' + IntToStr(AReportType), '');
+end;
+
+procedure TTitanDriver.SetClock(ADateTime: TDateTime);
+begin
+  SendRequest(REQ_TYPE_SETCLOCK, '/cgi/proc/setclock?' + DateTimeToIso(ADateTime), '');
+end;
+
+procedure TTitanDriver.Sound(ALen, AFreq: Integer);
+begin
+  SendRequest(REQ_TYPE_SOUND, '/cgi/proc/sound?' + IntToStr(ALen) + '&' + IntToStr(AFreq), '');
+end;
+
+procedure TTitanDriver.GetDocState();
+begin
+  SendRequest(REQ_TYPE_PROC_STATE, '/cgi/proc/state', '');
+end;
+
+procedure TTitanDriver.GetFMState();
+begin
+  SendRequest(REQ_TYPE_SKNOSTATE, '/cgi/proc/sknostate', '');
+  SendRequest(REQ_TYPE_GETFMROOM, '/cgi/proc/getfmroom', '');
+  SendRequest(REQ_TYPE_GETJRNROOM, '/cgi/proc/getjrnroom', '');
+  SendRequest(REQ_TYPE_LASTRECEIPT, '/cgi/proc/lastreceipt', '');
+end;
+
+procedure TTitanDriver.SendAuth(ARequest: TFrRequest);
+var
+  ht: THttpSend;
+  slHeaders, slCookies: TStringList;
+  x, y: Integer;
+  isOk: Boolean;
+  h1, h2, h3, sProt, sName, sPwd, sURI, sUrl: string;
+  sUsr0, sPas0, sHost, sPort, sPath, sParams: string;
+  aStr, sMethod: string;
+  //wPort: Word;
+begin
+  if not Assigned(FSession) then
+    FSession := TFrSession.Create();
+
+  sUrl := ARequest.RequestUrl;
+  sProt := '';
+  sUsr0 := '';
+  sPas0 := '';
+  sHost := '';
+  sPort := '';
+  sPath := '';
+  sParams := '';
+
+  ParseURL(sUrl, sProt, sUsr0, sPas0, sHost, sPort, sPath, sParams);
+
+  sUri := sPath;
+  sName := DevLogin;
+  sPwd := DevPassw;
+  sMethod := 'GET';
+
+  ht := THttpSend.Create();
+  slHeaders := TStringList.Create();
+  slCookies := TStringList.Create();
+
+  try
+    SetDefaultHeaders(ht);
+    if FSession.nonce <> '' then
+    begin
+      ht.Headers.Add('Authorization: Digest username=' + AnsiQuotedStr(sName, #34)
+      + ', realm=' + AnsiQuotedStr(FSession.realm, #34)
+      + ', nonce=' + AnsiQuotedStr(FSession.nonce, #34)
+      + ', uri=' + AnsiQuotedStr(sUri, #34)
+      + ', algorithm=MD5'
+      + ', qop=' + FSession.qop
+      + ', nc=' + FSession.nc
+      + ', cnonce=' + AnsiQuotedStr(FSession.cnonce, #34)
+      + ', response=' + AnsiQuotedStr(FSession.response, #34));
+    end;
+
+    isOk := ht.HTTPMethod(sMethod, sUrl);
+    if (ht.ResultCode = 401) then
+    begin
+      slCookies.Text := ht.Cookies.Text;
+      for x:= 0 to Pred(ht.Headers.Count) do
+      begin
+        if LeftStr(UpperCase(ht.Headers.Strings[x]), 24) = 'WWW-AUTHENTICATE: DIGEST' then
+        begin
+          slHeaders.Clear;
+          slHeaders.StrictDelimiter := true;
+          slHeaders.Delimiter := ',';
+          slHeaders.DelimitedText := Trim(Copy(ht.Headers.Strings[x], 25, 400));
+
+          for y := 0 to pred(slHeaders.Count) do
+          begin
+            aStr := Trim(slHeaders.Strings[y]);
+            if LeftStr(aStr, 5) = 'realm' then
+              FSession.realm := StripQuotes(Copy(aStr, 7, Length(aStr)));
+            if LeftStr(aStr, 5) = 'nonce' then
+              FSession.nonce := StripQuotes(Copy(aStr, 7, Length(aStr)));
+            if LeftStr(aStr, 3) = 'qop' then
+              FSession.qop := StripQuotes(Copy(aStr, 5, Length(aStr)));
+            if LeftStr(aStr, 6) = 'opaque' then
+              FSession.opaque := StripQuotes(Copy(aStr, 8, Length(aStr)));
+          end;
+
+          isOk := False;
+
+          if FSession.OldNonce = FSession.nonce then
+          begin
+            Inc(FSession.IntNC);
+            FSession.cnonce := FSession.OldNonce;
+          end
+          else
+          begin
+            FSession.IntNC := 1;
+            FSession.cnonce := md5Print(md5String(IntToStr(DateTimeToUnix(Now()))));
+          end;
+
+          FSession.nc := RightStr('00000000' + IntToStr(FSession.IntNC), 8);
+
+          h1 := md5Print(md5String(sName + ':' + FSession.realm + ':' + sPwd));
+          h2 := md5Print(md5String(sMethod + ':' + sUri));
+          h3 := md5Print(md5String(h1 + ':' + FSession.nonce + ':' + FSession.nc + ':' + FSession.cnonce + ':' + FSession.qop + ':' + h2 ));
+          FSession.response := h3;
+
+          SetDefaultHeaders(ht);
+          ht.Cookies.Text := slCookies.Text;
+          ht.Headers.Add('Authorization: Digest username=' + AnsiQuotedStr(sName, #34)
+          + ', realm=' + AnsiQuotedStr(FSession.realm, #34)
+          + ', nonce=' + AnsiQuotedStr(FSession.nonce, #34)
+          + ', uri=' + AnsiQuotedStr(sUri, #34)
+          + ', algorithm=MD5'
+          + ', qop=' + FSession.qop
+          + ', nc=' + FSession.nc
+          + ', cnonce=' + AnsiQuotedStr(FSession.cnonce, #34)
+          + ', response=' + AnsiQuotedStr(FSession.response, #34));
+
+          isOk := ht.HTTPMethod(sMethod, sUrl);
+          Break;
+        end;
+      end;
+    end;
+
+    if IsOk then
+    begin
+      ht.Document.Seek(0,0);
+      ARequest.ResultJson := ht.Document.ReadAnsiString;
+    end;
+    ARequest.ResultHeaders := IntToStr(ht.ResultCode) + ' ' + ht.ResultString + #13 + ht.Headers.Text;
+    FSession.OldNonce := FSession.nonce;
+    FSession.OldcNonce := FSession.cnonce;
+  finally
+    ht.Free();
+    slHeaders.Free();
+    slCookies.Free();
+  end;
+end;
+
+procedure TTitanDriver.SendRequest(AReqType: Integer; AUrl, AJson: string);
 var
   TmpReq: TFrRequest;
+  TmpData: IDataStorage;
 begin
   TmpReq := TFrRequest.Create();
   TmpReq.SendTimestamp := Now();
+  TmpReq.RequestType := AReqType;
   TmpReq.RequestUrl := AUrl;
-  TmpReq.RequestData := AJson;
+  TmpReq.RequestJson := AJson;
   TmpReq.ResultJson := '';
+
+  SendAuth(TmpReq);
+
+  if TmpReq.ResultJson <> '' then
+  begin
+    // разбор ответа
+    TmpData := JsonToData(TmpReq.ResultJson);
+    if not Assigned(TmpData) then Exit;
+
+    case TmpReq.RequestType of
+      REQ_TYPE_DEV_INFO: ParseDevInfo(TmpData);
+      REQ_TYPE_DEV_STATE: ParseDevState(TmpData);
+    end;
+  end;
+end;
+
+procedure TTitanDriver.ParseReqResult(AReqType: Integer; AData: IDataStorage);
+begin
+  case AReqType of
+    REQ_TYPE_DEV_INFO:
+    begin
+      FDevInfo.SerialNum := AData.GetString('dev_zn');
+      FDevInfo.Version := AData.GetString('dev_ver');
+      FDevInfo.SwDate := IsoDateToDateTime(AData.GetString('dev_dat'));
+      FDevInfo.SknoNum := AData.GetString('skno_num');
+      FDevInfo.RegNum := AData.GetString('reg_num');
+      FDevInfo.UnpNum := AData.GetString('unp_num');
+      FDevInfo.ProtocolVersion := AData.GetString('prot');
+    end;
+
+    REQ_TYPE_DEV_STATE:
+    begin
+      FDevInfo.Model := AData.GetString('model');
+      FDevInfo.Name := AData.GetString('name');
+      FDevInfo.SerialNum := AData.GetString('serial');
+      FDevInfo.ChkId := AData.GetInteger('chkId');
+      FDevInfo.JrnTime := IsoDateToDateTime(AData.GetString('JrnTime'));
+      FDevInfo.CurrZ := AData.GetInteger('currZ');
+      FDevInfo.IsWrk := AData.GetBool('IsWrk');
+      FDevInfo.IsFiscalization := AData.GetBool('Fiscalization');
+      FDevInfo.IsFskMode := AData.GetBool('FskMode');
+      FDevInfo.SknoState := AData.GetString('SKNOState');
+      FDevInfo.Err := AData.GetString('err');
+    end;
+
+    REQ_TYPE_GETFMROOM:
+    begin
+      FFmRoomInfo.TotalCount := AData.GetObject(0).GetInteger();
+      FFmRoomInfo.FreeCount := AData.GetObject(1).GetInteger();
+    end;
+
+    REQ_TYPE_GETJRNROOM:
+    begin
+      FJrnRoomInfo.TotalCount := AData.GetObject(0).GetInteger();
+      FJrnRoomInfo.FreeCount := AData.GetObject(1).GetInteger();
+    end;
+
+    REQ_TYPE_LASTRECEIPT:
+    begin
+      FLastDocInfo.TotalSum := StrToCurr(AData.GetObject(0).GetValue());
+      FLastDocInfo.DocNum := AData.GetObject(1).GetInteger();
+      FLastDocInfo.DateTime := IsoDateToDateTime(AData.GetObject(2).GetValue());
+      FLastDocInfo.OpNum := AData.GetObject(3).GetInteger();
+      FLastDocInfo.UID := AData.GetObject(4).GetValue();
+    end;
+
+    REQ_TYPE_PROC_STATE:
+    begin
+      FCurDocInfo.DocState := AData.GetObject(0).GetInteger();
+      FCurDocInfo.OpNum := AData.GetObject(1).GetInteger();
+      FCurDocInfo.DocNum := AData.GetObject(2).GetInteger();
+      FCurDocInfo.RepNum := AData.GetObject(3).GetInteger();
+    end;
+
+    REQ_TYPE_SKNOSTATE:
+    begin
+      FDevInfo.SknoState := 'x'+IntToHex(AData.GetInteger(), 8);
+    end;
+  end;
 end;
 
 procedure TTitanDriver.ParseDevInfo(AData: IDataStorage);
@@ -664,8 +1039,8 @@ begin
   FDevInfo.JrnTime := IsoDateToDateTime(AData.GetString('JrnTime'));
   FDevInfo.CurrZ := AData.GetInteger('currZ');
   FDevInfo.IsWrk := AData.GetBool('IsWrk');
-  FDevInfo.IsFiscalization := AData.GetInteger('Fiscalization');
-  FDevInfo.IsFskMode := AData.GetInteger('FskMode');
+  FDevInfo.IsFiscalization := AData.GetBool('Fiscalization');
+  FDevInfo.IsFskMode := AData.GetBool('FskMode');
   FDevInfo.SknoState := AData.GetString('SKNOState');
   FDevInfo.Err := AData.GetString('err');
 end;
