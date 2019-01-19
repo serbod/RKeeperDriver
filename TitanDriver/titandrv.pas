@@ -1,3 +1,8 @@
+{
+  Драйвер фискального регистратора Titan-F
+
+  кодировка по умолчанию - CP-1251
+}
 unit TitanDrv;
 
 {$mode objfpc}{$H+}
@@ -5,8 +10,8 @@ unit TitanDrv;
 interface
 
 uses
-  Classes, SysUtils, DataPort, DataStorage,
-  DataPortIP, DataPortHTTP, fphttpclient;
+  Classes, SysUtils, DataPort, DataStorage, synsock, blcksock,
+  DataPortIP, fphttpclient;
 
 const
   { типы отчетов с БЭП }
@@ -22,7 +27,7 @@ const
   REPORT_PRINT_CLOSE_ORDERS = 4; // печать отчета по открытым ресторанным заказам с
                                  // автоматическим закрытием наличными
   REPORT_PRINT_ORDERS     = 5;  // печать отчета по открытым ресторанным заказам
-  REPORT_X1               = 10; // 100 – дневной отчет без обнуление (X1)
+  REPORT_X1               = 10; // (или 100) – дневной отчет без обнуление (X1)
   REPORT_SALES            = 20; // Отчет по проданным товарам
   REPORT_SALES_CLEAR      = 21; // Отчет по проданным товарам с обнулением этого отчета
   REPORT_BOX              = 102; // отчет по денежному ящику
@@ -197,6 +202,7 @@ type
     // создаются в процессе работы
     FSession: TFrSession;
     FDataPortUdp: TDataPortUDP;
+    FUdpSocket: TUDPBlockSocket;
 
     FDevAddr: string;
     FDevLogin: string;
@@ -224,6 +230,8 @@ type
 
     procedure OnUdpDataAppearHandler(Sender: TObject);
   public
+    IsStateUpdated: Boolean;
+
     procedure AfterConstruction(); override;
     procedure BeforeDestruction(); override;
 
@@ -252,15 +260,24 @@ type
     procedure SetClock(ADateTime: TDateTime);
     { состояние модуля СКНО }
     //procedure SknoState();
-    { звуковой сигнал }
+    { звуковой сигнал
+      ALen - длительность (мс)
+      AFreq - частота (Гц) }
     procedure Sound(ALen, AFreq: Integer);
     { состояние текущего документа }
     procedure GetDocState();
     { запросить состояние ФП }
     procedure GetFMState();
+    { запросить состояние прибора }
+    procedure GetDevState();
+    { запросить информацию о приборе }
+    procedure GetDevInfo();
 
     { Запустить обнаружение ФР в сети }
     procedure Discover();
+
+    { Такт, вызывается каждые 100 мс }
+    procedure Tick();
 
     procedure SendFrDoc(AFrDoc: TFrDoc);
 
@@ -271,6 +288,7 @@ type
     property DataPort: TDataPort read FDataPort write FDataPort;
 
     property DevInfo: TFrDevInfo read FDevInfo;
+    property AddrList: TStringList read FFrAddrList;
   end;
 
 implementation
@@ -473,7 +491,7 @@ begin
   AHttpSend.Clear();
   AHttpSend.Headers.Clear();
   AHttpSend.Protocol := '1.1';
-  AHttpSend.Headers.Add('User-Agent: serbod');
+  //AHttpSend.Headers.Add('User-Agent: serbod');
 
   //AHttpSend.Headers.Add('Connection: keep-alive');
   //AHttpSend.Headers.Add('User-Agent: Mozilla/5.0 (X11; Linux i686; rv:9.0) Gecko/20100101 Firefox/9.0');
@@ -746,6 +764,9 @@ procedure TTitanDriver.AfterConstruction();
 begin
   inherited AfterConstruction();
   FFrAddrList := TStringList.Create();
+  FDevAddr := '169.254.148.191';
+  FDevLogin := 'service';
+  FDevPassw := '751426';
 end;
 
 procedure TTitanDriver.BeforeDestruction();
@@ -799,6 +820,16 @@ begin
   SendRequest(REQ_TYPE_LASTRECEIPT, '/cgi/proc/lastreceipt', '');
 end;
 
+procedure TTitanDriver.GetDevState();
+begin
+  SendRequest(REQ_TYPE_DEV_STATE, '/cgi/state', '');
+end;
+
+procedure TTitanDriver.GetDevInfo();
+begin
+  SendRequest(REQ_TYPE_DEV_INFO, '/cgi/dev_info', '');
+end;
+
 procedure TTitanDriver.SendAuth(ARequest: TFrRequest);
 var
   ht: THttpSend;
@@ -813,7 +844,7 @@ begin
   if not Assigned(FSession) then
     FSession := TFrSession.Create();
 
-  sUrl := ARequest.RequestUrl;
+  sUrl := 'http://' + Self.DevAddr + ARequest.RequestUrl;
   sProt := '';
   sUsr0 := '';
   sPas0 := '';
@@ -848,6 +879,7 @@ begin
       + ', response=' + AnsiQuotedStr(FSession.response, #34));
     end;
 
+    ht.Timeout := 2;
     isOk := ht.HTTPMethod(sMethod, sUrl);
     if (ht.ResultCode = 401) then
     begin
@@ -915,9 +947,11 @@ begin
     if IsOk then
     begin
       ht.Document.Seek(0,0);
-      ARequest.ResultJson := ht.Document.ReadAnsiString;
+      ARequest.ResultJson := ReadStrFromStream(ht.Document, ht.Document.Size);
+      StrToFile('doc_body.json', ARequest.ResultJson);
     end;
     ARequest.ResultHeaders := IntToStr(ht.ResultCode) + ' ' + ht.ResultString + #13 + ht.Headers.Text;
+    StrToFile('result_headers.txt', ARequest.ResultHeaders);
     FSession.OldNonce := FSession.nonce;
     FSession.OldcNonce := FSession.cnonce;
   finally
@@ -947,10 +981,11 @@ begin
     TmpData := JsonToData(TmpReq.ResultJson);
     if not Assigned(TmpData) then Exit;
 
-    case TmpReq.RequestType of
+    ParseReqResult(TmpReq.RequestType, TmpData);
+    {case TmpReq.RequestType of
       REQ_TYPE_DEV_INFO: ParseDevInfo(TmpData);
       REQ_TYPE_DEV_STATE: ParseDevState(TmpData);
-    end;
+    end; }
   end;
 end;
 
@@ -1017,6 +1052,7 @@ begin
       FDevInfo.SknoState := 'x'+IntToHex(AData.GetInteger(), 8);
     end;
   end;
+  IsStateUpdated := True;
 end;
 
 procedure TTitanDriver.ParseDevInfo(AData: IDataStorage);
@@ -1061,22 +1097,52 @@ end;
 
 procedure TTitanDriver.Discover();
 var
-  s: AnsiString;
+  s, sr, sAddr: AnsiString;
 begin
   s := 'M-SEARCH * HTTP/1.1' + #13 + #10
      + 'Host:239.255.255.250:1900' + #13 + #10
-     + 'ST:urn:help-micro.kiev.ua:device:webdev:1' + #13 + #10
+     //+ 'ST:urn:help-micro.kiev.ua:device:webdev:1' + #13 + #10
+     + 'ST:upnp:rootdevice' + #13 + #10
      + 'Man:"ssdp:discover"' + #13 + #10
      + 'MX:3' + #13 + #10 + #13 + #10;
 
   FFrAddrList.Clear();
+  FFrAddrList.Add('169.254.148.191');
 
-  if not Assigned(FDataPortUdp) then
+  {if not Assigned(FDataPortUdp) then
     FDataPortUdp := TDataPortUDP.Create(Self);
 
   FDataPortUdp.OnDataAppear := @OnUdpDataAppearHandler;
   FDataPortUdp.Open('239.255.255.250:1900');
-  FDataPortUdp.Push(s);
+  FDataPortUdp.Push(s);   }
+
+  if not Assigned(FUdpSocket) then
+    FUdpSocket := TUDPBlockSocket.Create();
+
+  FUdpSocket.EnableBroadcast(True);
+  begin
+    FUdpSocket.AddMulticast('239.255.255.250');
+    //FUdpSocket.Bind('0.0.0.0', '1900');
+    FUdpSocket.Connect('239.255.255.250', '1900');
+    FUdpSocket.SendString(s);
+    sr := FUdpSocket.RecvPacket(3000);
+    if Pos('HTTP/1.1 200 OK', sr) > 0 then
+    begin
+      sAddr := FUdpSocket.GetRemoteSinIP();
+      // добавление в список известных ФР
+      if FFrAddrList.IndexOf(sAddr) = -1 then
+        FFrAddrList.Add(sAddr);
+    end;
+    FreeAndNil(FUdpSocket);
+  end;
+end;
+
+procedure TTitanDriver.Tick();
+begin
+  if Assigned(FUdpSocket) then
+  begin
+    FUdpSocket.RecvPacket(10);
+  end;
 end;
 
 procedure TTitanDriver.SendFrDoc(AFrDoc: TFrDoc);

@@ -435,9 +435,8 @@ begin
   WriteLog('<Printing is complete>'#13#10);
 end;
 
-{$HINTS OFF}
 function _UFRFiscalDocument(Number: Integer; XMLDoc: PChar;
-var Status: TUFRStatus; var FieldsFilled: cardinal): Integer;
+  var Status: TUFRStatus; var FieldsFilled: cardinal): Integer;
 const
   stDocType: array[0..7] of string =
     ('Receipt', 'Return', 'Deletion', 'ReceiptCopy', 'CashInOut', 'CollectAll',
@@ -517,8 +516,8 @@ var
                 Val64 := GetIntValByName(XMLNode2, 'Quantity', 1000);
                 Quantity := Val64;
                 if FindAttrByName(XMLNode2, 'PricePerOne') <> '' then
-                  //если указана стоимость одного товара, то надо использовать ее
                 begin
+                  //если указана стоимость одного товара, то надо использовать ее
                   Val64 := GetIntValByName(XMLNode2, 'PricePerOne', 0);
                   //получаем цену всех товаров для подсчета Sum
                   if FindAttrByName(XMLNode2, 'Value') <> '' then
@@ -528,8 +527,8 @@ var
                   Inc(Sum, Val64);
                 end
                 else
-                  //иначе используем параметр Value с ценой всех товаров
                 begin
+                  //иначе используем параметр Value с ценой всех товаров
                   Val64 := GetIntValByName(XMLNode2, 'Value', 0);
                   Inc(Sum, Val64);
                   Val64 := Val64 * 1000 div Quantity;
@@ -556,8 +555,8 @@ var
                   end
                   else
                   if NodeNameIs(XMLNode3, 'Discounts') then
-                    //скидки и надбавки
                   begin
+                    //скидки и надбавки
                     XMLNode4 := XMLNode3.firstChild;
                     while XMLNode4 <> nil do
                     begin
@@ -586,8 +585,8 @@ var
           end
           else
           if NodeNameIs(XMLNode, 'Discounts') then
-            //скидки и надбавки
           begin
+            //скидки и надбавки
             Discount := 0;
             XMLNode2 := XMLNode.firstChild;
             while XMLNode2 <> nil do
@@ -606,8 +605,8 @@ var
           end
           else
           if NodeNameIs(XMLNode, 'Payments') then
-            //расплата и закрытие чека
           begin
+            //расплата и закрытие чека
             XMLNode2 := XMLNode.firstChild;
             Inc(CashRes, Sum);
             while XMLNode2 <> nil do
@@ -632,8 +631,8 @@ var
       end
       else
       if NodeNameIs(MainNode, 'Payment') and (DocType in [4, 8]) and pPrint then
-        //внесение или выплата
       begin
+        //внесение или выплата
         Val64 := GetIntValByName(MainNode, 'Value', 0);
         Inc(CashRes, Val64);
       end;
@@ -898,7 +897,7 @@ begin
 end;
 
 function _UFRGetZReportData(Number: Integer; XMLData: PChar;
-var XMLDataSize: Integer): Integer; stdcall;
+  var XMLDataSize: Integer): Integer; stdcall;
 var
   DevInd: Integer;
   stRes: string;
@@ -920,15 +919,15 @@ begin
   AddLogEvent(DevInd, letOther, 'Z-Report has successfully obtained');
 end;
 
-function UFRCustomerDisplay(Number: Integer; XMLBuffer: PChar; Flags: Integer): Integer;
-stdcall;
+function UFRCustomerDisplay(Number: Integer; XMLBuffer: PChar;
+  Flags: Integer): Integer; stdcall;
 begin
   Result := errFunctionNotSupported;
 end;
 
 function UFRInit(DevNumber: Integer; XMLParams: PChar;
-  InterfaceCallback: tInterfaceCallbackProc; PropCallback: tPropCallbackProc): Integer;
-stdcall;
+  InterfaceCallback: TInterfaceCallbackProc;
+  PropCallback: TPropCallbackProc): Integer; stdcall;
 var
   j: Integer;
 begin
@@ -950,8 +949,8 @@ begin
   LeaveCriticalSection(CriticalSections[2]);
 end;
 
-function UFRUnfiscalPrint(Number: Integer; XMLBuffer: PChar; Flags: Integer): Integer;
-stdcall;
+function UFRUnfiscalPrint(Number: Integer; XMLBuffer: PChar;
+  Flags: Integer): Integer; stdcall;
 begin
   EnterCriticalSection(CriticalSections[3]);
   Result := _UFRUnfiscalPrint(Number, XMLBuffer, Flags);
@@ -960,7 +959,7 @@ begin
 end;
 
 function UFRFiscalDocument(Number: Integer; XMLDoc: PChar; var Status: TUFRStatus;
-var FieldsFilled: cardinal): Integer; stdcall;
+  var FieldsFilled: cardinal): Integer; stdcall;
 begin
   EnterCriticalSection(CriticalSections[4]);
   Result := _UFRFiscalDocument(Number, XMLDoc, Status, FieldsFilled);
@@ -977,7 +976,7 @@ begin
 end;
 
 function UFRGetOptions(Number: Integer; var Options: int64;
-var DriverName, VersionInfo, DriverState: OpenString): Integer; stdcall;
+  var DriverName, VersionInfo, DriverState: OpenString): Integer; stdcall;
 begin
   Result := errLogicPrinterNotReady;
   DriverName := CNST__DRIVER_DESC;
@@ -1003,7 +1002,7 @@ begin
 end;
 
 function UFRGetZReportData(Number: Integer; XMLData: PChar;
-var XMLDataSize: Integer): Integer; stdcall;
+  var XMLDataSize: Integer): Integer; stdcall;
 begin
   EnterCriticalSection(CriticalSections[8]);
   Result := _UFRGetZReportData(Number, XMLData, XMLDataSize);

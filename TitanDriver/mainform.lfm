@@ -1,8 +1,147 @@
-object Form1: TForm1
+object FormMain: TFormMain
   Left = 606
-  Height = 240
+  Height = 387
   Top = 347
-  Width = 320
-  Caption = 'Form1'
+  Width = 529
+  Caption = 'Titan-F driver test'
+  ClientHeight = 387
+  ClientWidth = 529
+  OnCreate = FormCreate
+  OnDestroy = FormDestroy
+  PopupMenu = pmMain
   LCLVersion = '2.1.0.0'
+  object Button1: TButton
+    Left = 19
+    Height = 25
+    Top = 17
+    Width = 75
+    Action = actDiscover
+    TabOrder = 0
+  end
+  object gbLogin: TGroupBox
+    Left = 112
+    Height = 169
+    Top = 15
+    Width = 185
+    Caption = 'Учетная запись'
+    ClientHeight = 149
+    ClientWidth = 181
+    TabOrder = 1
+    object edAddr: TLabeledEdit
+      Left = 8
+      Height = 23
+      Top = 24
+      Width = 160
+      EditLabel.Height = 15
+      EditLabel.Width = 160
+      EditLabel.Caption = 'Адрес ФР'
+      EditLabel.ParentColor = False
+      TabOrder = 0
+    end
+    object edLogin: TLabeledEdit
+      Left = 8
+      Height = 23
+      Top = 72
+      Width = 160
+      EditLabel.Height = 15
+      EditLabel.Width = 160
+      EditLabel.Caption = 'Логин'
+      EditLabel.ParentColor = False
+      TabOrder = 1
+      Text = 'User1'
+    end
+    object edPassw: TLabeledEdit
+      Left = 8
+      Height = 23
+      Top = 112
+      Width = 160
+      EditLabel.Height = 15
+      EditLabel.Width = 160
+      EditLabel.Caption = 'Пароль'
+      EditLabel.ParentColor = False
+      TabOrder = 2
+      Text = '1111'
+    end
+  end
+  object lboxAddrList: TListBox
+    Left = 10
+    Height = 80
+    Top = 52
+    Width = 100
+    ItemHeight = 0
+    OnClick = lboxAddrListClick
+    TabOrder = 2
+  end
+  object gbDevInfo: TGroupBox
+    Left = 306
+    Height = 370
+    Top = 6
+    Width = 214
+    Caption = 'Информация о приборе'
+    ClientHeight = 350
+    ClientWidth = 210
+    TabOrder = 3
+    object memoDevInfo: TMemo
+      Left = 4
+      Height = 342
+      Top = 4
+      Width = 202
+      Align = alClient
+      BorderSpacing.Around = 4
+      TabOrder = 0
+    end
+  end
+  object alMain: TActionList
+    Left = 41
+    Top = 133
+    object actDiscover: TAction
+      Caption = 'Поиск ФР'
+      OnExecute = actDiscoverExecute
+    end
+    object actReqStatus: TAction
+      Category = 'Requests'
+      Caption = 'Запрос статуса'
+      OnExecute = actReqStatusExecute
+    end
+    object actReqDevInfo: TAction
+      Category = 'Requests'
+      Caption = 'Запрос информации о приборе'
+      OnExecute = actReqDevInfoExecute
+    end
+    object actSound: TAction
+      Category = 'Procs'
+      Caption = 'Издать звук'
+      OnExecute = actSoundExecute
+    end
+    object actSound2: TAction
+      Category = 'Procs'
+      Caption = 'Звук 2'
+      OnExecute = actSound2Execute
+    end
+  end
+  object Timer100ms: TTimer
+    Interval = 100
+    OnTimer = Timer100msTimer
+    Left = 180
+    Top = 137
+  end
+  object pmMain: TPopupMenu
+    Left = 324
+    Top = 24
+    object MenuItem1: TMenuItem
+      Action = actReqDevInfo
+    end
+    object MenuItem2: TMenuItem
+      Action = actReqStatus
+    end
+    object MenuItem3: TMenuItem
+      Caption = 'Команды'
+      object MenuItem4: TMenuItem
+        Action = actSound
+      end
+      object MenuItem5: TMenuItem
+        Action = actSound2
+      end
+    end
+  end
 end
