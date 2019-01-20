@@ -14,6 +14,17 @@ type
 
   TFormMain = class(TForm)
     actDiscover: TAction;
+    actRep107: TAction;
+    actRep102: TAction;
+    actRep21: TAction;
+    actRep20: TAction;
+    actRep10: TAction;
+    actRep5: TAction;
+    actRep4: TAction;
+    actRep3: TAction;
+    actRep2: TAction;
+    actRep1: TAction;
+    actRep0: TAction;
     actSound2: TAction;
     actSound: TAction;
     actReqDevInfo: TAction;
@@ -28,13 +39,26 @@ type
     lboxAddrList: TListBox;
     memoDevInfo: TMemo;
     MenuItem1: TMenuItem;
+    MenuItem10: TMenuItem;
+    MenuItem11: TMenuItem;
+    MenuItem12: TMenuItem;
+    MenuItem13: TMenuItem;
+    MenuItem14: TMenuItem;
+    MenuItem15: TMenuItem;
+    MenuItem16: TMenuItem;
+    MenuItem17: TMenuItem;
     MenuItem2: TMenuItem;
     MenuItem3: TMenuItem;
     MenuItem4: TMenuItem;
     MenuItem5: TMenuItem;
+    MenuItem6: TMenuItem;
+    MenuItem7: TMenuItem;
+    MenuItem8: TMenuItem;
+    MenuItem9: TMenuItem;
     pmMain: TPopupMenu;
     Timer100ms: TTimer;
     procedure actDiscoverExecute(Sender: TObject);
+    procedure actRepExecute(Sender: TObject);
     procedure actReqDevInfoExecute(Sender: TObject);
     procedure actReqStatusExecute(Sender: TObject);
     procedure actSound2Execute(Sender: TObject);
@@ -105,6 +129,32 @@ begin
   TitanDriver.Discover();
 end;
 
+procedure TFormMain.actRepExecute(Sender: TObject);
+begin
+  if Sender = actRep0 then
+    TitanDriver.PrintReport(REPORT_Z1)
+  else if Sender = actRep1 then
+    TitanDriver.PrintReport(REPORT_CLEAN_LOG)
+  else if Sender = actRep2 then
+    TitanDriver.PrintReport(REPORT_PRINT_CLEAN_LOG)
+  else if Sender = actRep3 then
+    TitanDriver.PrintReport(REPORT_SKNO_REPORT)
+  else if Sender = actRep4 then
+    TitanDriver.PrintReport(REPORT_PRINT_CLOSE_ORDERS)
+  else if Sender = actRep5 then
+    TitanDriver.PrintReport(REPORT_PRINT_ORDERS)
+  else if Sender = actRep10 then
+    TitanDriver.PrintReport(REPORT_X1)
+  else if Sender = actRep20 then
+    TitanDriver.PrintReport(REPORT_SALES)
+  else if Sender = actRep21 then
+    TitanDriver.PrintReport(REPORT_SALES_CLEAR)
+  else if Sender = actRep102 then
+    TitanDriver.PrintReport(REPORT_BOX)
+  else if Sender = actRep107 then
+    TitanDriver.PrintReport(REPORT_SALES_BY_TIME);
+end;
+
 procedure TFormMain.actReqDevInfoExecute(Sender: TObject);
 begin
   TitanDriver.GetDevInfo();
@@ -168,7 +218,7 @@ begin
     memoDevInfo.Lines.Add('Есть записи в журнале: '+ BoolToStr(TitanDriver.DevInfo.IsWrk, 'Да', 'Нет'));
     memoDevInfo.Lines.Add('Фискализация режим: '+ BoolToStr(TitanDriver.DevInfo.IsFiscalization, 'Да', 'Нет'));
     memoDevInfo.Lines.Add('Фискальный режим: '+ BoolToStr(TitanDriver.DevInfo.IsFskMode, 'Да', 'Нет'));
-    memoDevInfo.Lines.Add('СКНО: '+ TitanDriver.DevInfo.SknoState);
+    memoDevInfo.Lines.Add('СКНО: '+ IntToStr(TitanDriver.DevInfo.SknoState));
     memoDevInfo.Lines.Add('Err: '+ TitanDriver.DevInfo.Err);
     memoDevInfo.Lines.EndUpdate();
   end;

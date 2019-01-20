@@ -1,5 +1,6 @@
 {
   Драйвер фискального регистратора Titan-F
+  Бодров Сергей (www.serbod.com)
 
   кодировка по умолчанию - CP-1251
 }
@@ -11,7 +12,7 @@ interface
 
 uses
   Classes, SysUtils, DataPort, DataStorage, synsock, blcksock,
-  DataPortIP, fphttpclient;
+  DataPortIP;
 
 const
   { типы отчетов с БЭП }
@@ -99,7 +100,18 @@ type
     ResultHeaders: string;
   end;
 
-  TFrDocType = (frdUncnown, frdFiscal, frdRefund, frdCashIO, frdVoiding, frdNonFiscal, frdCopy, frdOrder, frdOrderCancel);
+  { типы документов }
+  TFrDocType = (frdUnknown,      // неопределен
+                frdFiscal,       // фискальный чек
+                frdRefund,       // чек возврата
+                frdCashIO,       // чек внесения-изъятия денег
+                frdVoiding,      // чек аннулирования
+                frdNonFiscal,    // нефискальный чек
+                frdCopy,         // копия чека или ресторанного счета
+                frdOrder,        // ресторанный заказ
+                frdOrderCancel,  // отмена ресторанного заказа
+                frdLogin,        // регистрация кассира
+                frdZReport);     // дневной Z-отчет
 
   { TFrDoc }
 
@@ -109,6 +121,23 @@ type
   public
     Data: IDataStorage;
     Lines: IDataStorage;
+
+    // заполняется при чтении ленты
+    // Дата и время объекта в ленте
+    DateTime: TDateTime;
+    // уникальный идентификатор объекта в чековой ленте
+    ID: Integer;
+    // номер оператора, связанный с объектом ленты
+    OperID: Integer;
+    // номер ресторанного счета
+    BillNum: Integer;
+    { -- только для чеков }
+    // номер чека
+    DocNum: Integer;
+    // признак того, что чек еще не напечатан.
+    IsPending: Boolean;
+    // уникальный идентификатор документа
+    UID: string;
 
     { строка продажи }
     procedure AddSale(AName, ACode: string; APrice: Currency; AQty: Currency = 1;
@@ -153,6 +182,17 @@ type
     procedure AddCancelBill(ABillNo: Integer);
 
     constructor Create(ADocType: TFrDocType);
+
+    property DocType: TFrDocType read FDocType;
+  end;
+
+  { TFrDocList }
+
+  TFrDocList = class(TList)
+  protected
+    procedure Notify(Ptr: Pointer; Action: TListNotification); override;
+  public
+    function GetItem(AIndex: Integer): TFrDoc;
   end;
 
   TFrDevInfo = record
@@ -172,22 +212,26 @@ type
     IsWrk: Boolean;
     IsFiscalization: Boolean;
     IsFskMode: Boolean;
-    SknoState: string;
+    SknoState: Integer;
     Err: string;
   end;
 
+  { Информация о послежднем или текущем документе }
   TFrDocInfo = record
     // Номер документа, 0 - неопределен
     DocNum: Integer;
     TotalSum: Currency;
     DateTime: TDateTime;
+    // номер оператора, начавшего документ
     OpNum: Integer;
     UID: string;
     // для несохраненного документа
+    // битовая маска состояния документа (DOC_STATE_)
     DocState: Integer;
     RepNum: Integer;
   end;
 
+  { Информация о количестве записей }
   TFrRecListInfo = record
     TotalCount: Integer;
     FreeCount: Integer;
@@ -199,6 +243,7 @@ type
   private
     // создаются сразу
     FFrAddrList: TStringList;
+    FDocList: TFrDocList;
     // создаются в процессе работы
     FSession: TFrSession;
     FDataPortUdp: TDataPortUDP;
@@ -222,11 +267,8 @@ type
 
     { разбор ответа на запрос }
     procedure ParseReqResult(AReqType: Integer; AData: IDataStorage);
-    { прочитать идентификацию устройства в FrDevInfo }
-    procedure ParseDevInfo(AData: IDataStorage);
-    { прочитать состояние устройства в FrDevInfo }
-    procedure ParseDevState(AData: IDataStorage);
-
+    { разбор ответа на запрос /cgi/chk }
+    procedure ParseChk(AData: IDataStorage);
 
     procedure OnUdpDataAppearHandler(Sender: TObject);
   public
@@ -236,7 +278,7 @@ type
     procedure BeforeDestruction(); override;
 
     { прогон бумаги }
-    //procedure FeedPaper();
+    procedure FeedPaper();
     { регистрация }
     //procedure Fiscalization();
     { состояние фискальной памяти }
@@ -289,6 +331,7 @@ type
 
     property DevInfo: TFrDevInfo read FDevInfo;
     property AddrList: TStringList read FFrAddrList;
+    property DocList: TFrDocList read FDocList;
   end;
 
 implementation
@@ -467,8 +510,41 @@ begin
 end;
 
 function IsoDateToDateTime(AIsoDate: string): TDateTime;
+var
+  s: string;
+  YY, MM, DD, HH, NN, SS: Integer;
 begin
-  //
+  s := AIsoDate;
+  // 10.11.2012
+  if Pos('.', s) = 3 then
+  begin
+    DD := StrToIntDef(Fetch(s, '.'), 1);
+    MM := StrToIntDef(Fetch(s, '.'), 1);
+    YY := StrToIntDef(Fetch(s, '.'), 2000);
+    TryEncodeDate(YY, MM, DD, Result);
+    Exit;
+  end;
+  // 2012.11.10
+  if Pos('.', s) = 5 then
+  begin
+    YY := StrToIntDef(Fetch(s, '.'), 2000);
+    MM := StrToIntDef(Fetch(s, '.'), 1);
+    DD := StrToIntDef(Fetch(s, '.'), 1);
+    TryEncodeDate(YY, MM, DD, Result);
+    Exit;
+  end;
+  // 2012-12-31T23:59:59
+  if Pos('T', s) > 0 then
+  begin
+    YY := StrToIntDef(Fetch(s, '-'), 2000);
+    MM := StrToIntDef(Fetch(s, '-'), 1);
+    DD := StrToIntDef(Fetch(s, 'T'), 1);
+    HH := StrToIntDef(Fetch(s, ':'), 0);
+    NN := StrToIntDef(Fetch(s, ':'), 0);
+    SS := StrToIntDef(Fetch(s, '.'), 0);
+    TryEncodeDateTime(YY, MM, DD, HH, NN, SS, 0, Result);
+    Exit;
+  end;
 end;
 
 function DateTimeToIso(ADateTime: TDateTime): string;
@@ -499,6 +575,20 @@ begin
   //AHttpSend.Headers.Add('Accept-Language: en-us,en;q=0.5');
   //AHttpSend.Headers.Add('Accept-Encoding: gzip, deflate');
   //AHttpSend.Headers.Add('Accept-Charset: ISO-8859-1,utf-8;q=0.7,*;q=0.7');
+end;
+
+{ TFrDocList }
+
+procedure TFrDocList.Notify(Ptr: Pointer; Action: TListNotification);
+begin
+  inherited Notify(Ptr, Action);
+  if Action = lnDeleted then
+    TFrDoc(Ptr).Free();
+end;
+
+function TFrDocList.GetItem(AIndex: Integer): TFrDoc;
+begin
+  Result := TFrDoc(Get(AIndex));
 end;
 
 { TFrDoc }
@@ -764,6 +854,7 @@ procedure TTitanDriver.AfterConstruction();
 begin
   inherited AfterConstruction();
   FFrAddrList := TStringList.Create();
+  FDocList := TFrDocList.Create();
   FDevAddr := '169.254.148.191';
   FDevLogin := 'service';
   FDevPassw := '751426';
@@ -771,8 +862,14 @@ end;
 
 procedure TTitanDriver.BeforeDestruction();
 begin
+  FreeAndNil(FDocList);
   FreeAndNil(FFrAddrList);
   inherited BeforeDestruction();
+end;
+
+procedure TTitanDriver.FeedPaper();
+begin
+  SendRequest(REQ_TYPE_FEEDPAPER, '/cgi/proc/feedpaper', '');
 end;
 
 procedure TTitanDriver.OpenBox();
@@ -787,7 +884,7 @@ var
 begin
   if (AReportType < 1) or (AReportType > 4) then Exit;
 
-  s := '&' + DateToIso(ADateStart) + '&' + DateToIso(ADateStart)
+  s := '&' + DateToIso(ADateStart) + '&' + DateToIso(ADateEnd)
      + '&' + IntToStr(ANumStart) + '&' + IntToStr(ANumEnd);
   SendRequest(REQ_TYPE_PRINTFMREPORT, '/cgi/proc/printfmreport?' + IntToStr(AReportType) + s, '');
 end;
@@ -1014,7 +1111,7 @@ begin
       FDevInfo.IsWrk := AData.GetBool('IsWrk');
       FDevInfo.IsFiscalization := AData.GetBool('Fiscalization');
       FDevInfo.IsFskMode := AData.GetBool('FskMode');
-      FDevInfo.SknoState := AData.GetString('SKNOState');
+      FDevInfo.SknoState := AData.GetInteger('SKNOState');
       FDevInfo.Err := AData.GetString('err');
     end;
 
@@ -1049,36 +1146,75 @@ begin
 
     REQ_TYPE_SKNOSTATE:
     begin
-      FDevInfo.SknoState := 'x'+IntToHex(AData.GetInteger(), 8);
+      FDevInfo.SknoState := AData.GetInteger();
+    end;
+
+    REQ_TYPE_CHK:
+    begin
+      ParseChk(AData);
     end;
   end;
   IsStateUpdated := True;
 end;
 
-procedure TTitanDriver.ParseDevInfo(AData: IDataStorage);
+procedure TTitanDriver.ParseChk(AData: IDataStorage);
+var
+  TmpDoc: TFrDoc;
+  TmpDocType: TFrDocType;
 begin
-  FDevInfo.SerialNum := AData.GetString('dev_zn');
-  FDevInfo.Version := AData.GetString('dev_ver');
-  FDevInfo.SwDate := IsoDateToDateTime(AData.GetString('dev_dat'));
-  FDevInfo.SknoNum := AData.GetString('skno_num');
-  FDevInfo.RegNum := AData.GetString('reg_num');
-  FDevInfo.UnpNum := AData.GetString('unp_num');
-  FDevInfo.ProtocolVersion := AData.GetString('prot');
-end;
+  if (not Assigned(AData)) or (not AData.HaveName('id')) then Exit;
 
-procedure TTitanDriver.ParseDevState(AData: IDataStorage);
-begin
-  FDevInfo.Model := AData.GetString('model');
-  FDevInfo.Name := AData.GetString('name');
-  FDevInfo.SerialNum := AData.GetString('serial');
-  FDevInfo.ChkId := AData.GetInteger('chkId');
-  FDevInfo.JrnTime := IsoDateToDateTime(AData.GetString('JrnTime'));
-  FDevInfo.CurrZ := AData.GetInteger('currZ');
-  FDevInfo.IsWrk := AData.GetBool('IsWrk');
-  FDevInfo.IsFiscalization := AData.GetBool('Fiscalization');
-  FDevInfo.IsFskMode := AData.GetBool('FskMode');
-  FDevInfo.SknoState := AData.GetString('SKNOState');
-  FDevInfo.Err := AData.GetString('err');
+  TmpDocType := frdUnknown;
+  if AData.HaveName('L') then
+  begin
+    // реристрация кассира
+    TmpDocType := frdLogin;
+  end
+  else if AData.HaveName('Z1') then
+  begin
+    // номер дневного отчета
+    TmpDocType := frdZReport;
+  end
+  else if AData.HaveName('F') then
+  begin
+    // строки фискального чека
+    TmpDocType := frdFiscal;
+  end
+  else if AData.HaveName('R') then
+  begin
+    // строки чека возврата
+    TmpDocType := frdRefund;
+  end
+  else if AData.HaveName('IO') then
+  begin
+    // строки вноса-выноса денег
+    TmpDocType := frdCashIO;
+  end
+  else if AData.HaveName('VD') then
+  begin
+    // строки аннулирования
+    TmpDocType := frdVoiding;
+  end
+  else if AData.HaveName('RO') then
+  begin
+    // строки ресторанных заказов
+    TmpDocType := frdOrder;
+  end
+  else if AData.HaveName('bill') then
+  begin
+    // номер ресторанного счета
+  end;
+
+  TmpDoc := TFrDoc.Create(TmpDocType);
+  TmpDoc.DateTime := UnixToDateTime(AData.GetInteger('datetime'));
+  TmpDoc.ID := AData.GetInteger('id');
+  TmpDoc.OperID := AData.GetInteger('oper_id');
+  TmpDoc.BillNum := AData.GetInteger('bill');
+  TmpDoc.DocNum := AData.GetInteger('no');
+  TmpDoc.IsPending := AData.HaveName('Pending');
+  TmpDoc.UID := AData.GetString('UI');
+
+  DocList.Add(TmpDoc);
 end;
 
 procedure TTitanDriver.OnUdpDataAppearHandler(Sender: TObject);

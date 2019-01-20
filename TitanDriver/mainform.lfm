@@ -118,6 +118,61 @@ object FormMain: TFormMain
       Caption = 'Звук 2'
       OnExecute = actSound2Execute
     end
+    object actRep0: TAction
+      Category = 'Reports'
+      Caption = 'Дневной обнуляющий отчет (Z1)'
+      OnExecute = actRepExecute
+    end
+    object actRep1: TAction
+      Category = 'Reports'
+      Caption = 'Обнуление электронного журнала'
+      OnExecute = actRepExecute
+    end
+    object actRep2: TAction
+      Category = 'Reports'
+      Caption = 'Печать контрольной ленты с обнулением'
+      OnExecute = actRepExecute
+    end
+    object actRep3: TAction
+      Category = 'Reports'
+      Caption = 'Печать отчета состояния СКНО'
+      OnExecute = actRepExecute
+    end
+    object actRep4: TAction
+      Category = 'Reports'
+      Caption = 'Печать отчета по открытым ресторанным заказам с автоматическим закрытием наличными'
+      OnExecute = actRepExecute
+    end
+    object actRep5: TAction
+      Category = 'Reports'
+      Caption = 'Печать отчета по открытым ресторанным заказам'
+      OnExecute = actRepExecute
+    end
+    object actRep10: TAction
+      Category = 'Reports'
+      Caption = 'Дневной отчет без обнуления (X1)'
+      OnExecute = actRepExecute
+    end
+    object actRep20: TAction
+      Category = 'Reports'
+      Caption = 'Отчет по проданным товарам'
+      OnExecute = actRepExecute
+    end
+    object actRep21: TAction
+      Category = 'Reports'
+      Caption = 'Отчет по проданным товарам с обнулением этого отчета'
+      OnExecute = actRepExecute
+    end
+    object actRep102: TAction
+      Category = 'Reports'
+      Caption = 'Отчет по денежному ящику'
+      OnExecute = actRepExecute
+    end
+    object actRep107: TAction
+      Category = 'Reports'
+      Caption = 'Статистика продаж по времени'
+      OnExecute = actRepExecute
+    end
   end
   object Timer100ms: TTimer
     Interval = 100
@@ -141,6 +196,42 @@ object FormMain: TFormMain
       end
       object MenuItem5: TMenuItem
         Action = actSound2
+      end
+    end
+    object MenuItem6: TMenuItem
+      Caption = 'Печать отчета'
+      object MenuItem7: TMenuItem
+        Action = actRep0
+      end
+      object MenuItem8: TMenuItem
+        Action = actRep1
+      end
+      object MenuItem9: TMenuItem
+        Action = actRep2
+      end
+      object MenuItem10: TMenuItem
+        Action = actRep3
+      end
+      object MenuItem11: TMenuItem
+        Action = actRep4
+      end
+      object MenuItem12: TMenuItem
+        Action = actRep5
+      end
+      object MenuItem13: TMenuItem
+        Action = actRep10
+      end
+      object MenuItem14: TMenuItem
+        Action = actRep20
+      end
+      object MenuItem15: TMenuItem
+        Action = actRep21
+      end
+      object MenuItem16: TMenuItem
+        Action = actRep102
+      end
+      object MenuItem17: TMenuItem
+        Action = actRep107
       end
     end
   end
