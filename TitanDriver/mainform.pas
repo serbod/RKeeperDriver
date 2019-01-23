@@ -6,7 +6,7 @@ interface
 
 uses
   Classes, SysUtils, Forms, Controls, Graphics, Dialogs, ActnList, StdCtrls,
-  ExtCtrls, Menus, TitanDrv;
+  ExtCtrls, Menus, ComCtrls, TitanDrv;
 
 type
 
@@ -14,6 +14,7 @@ type
 
   TFormMain = class(TForm)
     actDiscover: TAction;
+    actReqDocs: TAction;
     actRep107: TAction;
     actRep102: TAction;
     actRep21: TAction;
@@ -30,13 +31,15 @@ type
     actReqDevInfo: TAction;
     actReqStatus: TAction;
     alMain: TActionList;
-    Button1: TButton;
+    btnDiscover: TButton;
     gbLogin: TGroupBox;
     edAddr: TLabeledEdit;
     edLogin: TLabeledEdit;
     edPassw: TLabeledEdit;
     gbDevInfo: TGroupBox;
+    gbDocs: TGroupBox;
     lboxAddrList: TListBox;
+    lvDocs: TListView;
     memoDevInfo: TMemo;
     MenuItem1: TMenuItem;
     MenuItem10: TMenuItem;
@@ -47,6 +50,8 @@ type
     MenuItem15: TMenuItem;
     MenuItem16: TMenuItem;
     MenuItem17: TMenuItem;
+    MenuItem18: TMenuItem;
+    MenuItem19: TMenuItem;
     MenuItem2: TMenuItem;
     MenuItem3: TMenuItem;
     MenuItem4: TMenuItem;
@@ -55,17 +60,23 @@ type
     MenuItem7: TMenuItem;
     MenuItem8: TMenuItem;
     MenuItem9: TMenuItem;
+    pgcMain: TPageControl;
     pmMain: TPopupMenu;
+    tsDocs: TTabSheet;
+    tsMain: TTabSheet;
     Timer100ms: TTimer;
     procedure actDiscoverExecute(Sender: TObject);
     procedure actRepExecute(Sender: TObject);
     procedure actReqDevInfoExecute(Sender: TObject);
+    procedure actReqDocsExecute(Sender: TObject);
     procedure actReqStatusExecute(Sender: TObject);
     procedure actSound2Execute(Sender: TObject);
     procedure actSoundExecute(Sender: TObject);
     procedure FormCreate(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
+    procedure gbDevInfoClick(Sender: TObject);
     procedure lboxAddrListClick(Sender: TObject);
+    procedure lvDocsData(Sender: TObject; Item: TListItem);
     procedure Timer100msTimer(Sender: TObject);
   private
     FTitanDriver: TTitanDriver;
@@ -160,6 +171,11 @@ begin
   TitanDriver.GetDevInfo();
 end;
 
+procedure TFormMain.actReqDocsExecute(Sender: TObject);
+begin
+  TitanDriver.GetDocs();
+end;
+
 procedure TFormMain.actReqStatusExecute(Sender: TObject);
 begin
   TitanDriver.GetDevState();
@@ -184,10 +200,34 @@ begin
   FreeAndNil(FTitanDriver);
 end;
 
+procedure TFormMain.gbDevInfoClick(Sender: TObject);
+begin
+
+end;
+
 procedure TFormMain.lboxAddrListClick(Sender: TObject);
 begin
   if lboxAddrList.GetSelectedText <> '' then
     edAddr.Text := lboxAddrList.GetSelectedText;
+end;
+
+procedure TFormMain.lvDocsData(Sender: TObject; Item: TListItem);
+var
+  TmpItem: TFrDoc;
+  n: Integer;
+begin
+  if Assigned(Item) then
+  begin
+    n := Item.Index;
+    if (n >= 0) and (n < TitanDriver.DocList.Count) then
+    begin
+      TmpItem := TitanDriver.DocList.GetItem(Item.Index);
+      Item.Caption := FormatDateTime('MM-DD HH:NN:SS', TmpItem.DateTime);
+      Item.SubItems.Add(IntToStr(TmpItem.ID));
+      Item.SubItems.Add(IntToStr(TmpItem.OperID));
+      Item.SubItems.Add(TmpItem.GetDocTypeStr());
+    end;
+  end;
 end;
 
 procedure TFormMain.Timer100msTimer(Sender: TObject);
@@ -195,6 +235,10 @@ begin
   FTitanDriver.Tick();
   if TitanDriver.AddrList.Count <> lboxAddrList.Items.Count then
     lboxAddrList.Items.Assign(TitanDriver.AddrList);
+
+  if lvDocs.Items.Count <> TitanDriver.DocList.Count then
+    lvDocs.Items.Count := TitanDriver.DocList.Count;
+  lvDocs.Invalidate();
 
   // update dev info
   if TitanDriver.IsStateUpdated then

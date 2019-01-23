@@ -10,85 +10,148 @@ object FormMain: TFormMain
   OnDestroy = FormDestroy
   PopupMenu = pmMain
   LCLVersion = '2.1.0.0'
-  object Button1: TButton
-    Left = 19
-    Height = 25
-    Top = 17
-    Width = 75
-    Action = actDiscover
+  object pgcMain: TPageControl
+    Left = 0
+    Height = 387
+    Top = 0
+    Width = 529
+    ActivePage = tsMain
+    Align = alClient
+    TabIndex = 0
     TabOrder = 0
-  end
-  object gbLogin: TGroupBox
-    Left = 112
-    Height = 169
-    Top = 15
-    Width = 185
-    Caption = 'Учетная запись'
-    ClientHeight = 149
-    ClientWidth = 181
-    TabOrder = 1
-    object edAddr: TLabeledEdit
-      Left = 8
-      Height = 23
-      Top = 24
-      Width = 160
-      EditLabel.Height = 15
-      EditLabel.Width = 160
-      EditLabel.Caption = 'Адрес ФР'
-      EditLabel.ParentColor = False
-      TabOrder = 0
+    object tsMain: TTabSheet
+      Caption = 'Основные свойства'
+      ClientHeight = 359
+      ClientWidth = 521
+      object btnDiscover: TButton
+        Left = 19
+        Height = 25
+        Top = 17
+        Width = 75
+        Action = actDiscover
+        TabOrder = 0
+      end
+      object gbLogin: TGroupBox
+        Left = 112
+        Height = 169
+        Top = 0
+        Width = 185
+        Caption = 'Учетная запись'
+        ClientHeight = 149
+        ClientWidth = 181
+        TabOrder = 1
+        object edAddr: TLabeledEdit
+          Left = 8
+          Height = 23
+          Top = 24
+          Width = 160
+          EditLabel.Height = 15
+          EditLabel.Width = 160
+          EditLabel.Caption = 'Адрес ФР'
+          EditLabel.ParentColor = False
+          TabOrder = 0
+        end
+        object edLogin: TLabeledEdit
+          Left = 8
+          Height = 23
+          Top = 72
+          Width = 160
+          EditLabel.Height = 15
+          EditLabel.Width = 160
+          EditLabel.Caption = 'Логин'
+          EditLabel.ParentColor = False
+          TabOrder = 1
+          Text = 'User1'
+        end
+        object edPassw: TLabeledEdit
+          Left = 8
+          Height = 23
+          Top = 112
+          Width = 160
+          EditLabel.Height = 15
+          EditLabel.Width = 160
+          EditLabel.Caption = 'Пароль'
+          EditLabel.ParentColor = False
+          TabOrder = 2
+          Text = '1111'
+        end
+      end
+      object lboxAddrList: TListBox
+        Left = 10
+        Height = 80
+        Top = 52
+        Width = 100
+        ItemHeight = 0
+        OnClick = lboxAddrListClick
+        TabOrder = 2
+      end
+      object gbDevInfo: TGroupBox
+        Left = 304
+        Height = 355
+        Top = 0
+        Width = 214
+        Caption = 'Информация о приборе'
+        ClientHeight = 335
+        ClientWidth = 210
+        TabOrder = 3
+        OnClick = gbDevInfoClick
+        object memoDevInfo: TMemo
+          Left = 4
+          Height = 327
+          Top = 4
+          Width = 202
+          Align = alClient
+          BorderSpacing.Around = 4
+          TabOrder = 0
+        end
+      end
     end
-    object edLogin: TLabeledEdit
-      Left = 8
-      Height = 23
-      Top = 72
-      Width = 160
-      EditLabel.Height = 15
-      EditLabel.Width = 160
-      EditLabel.Caption = 'Логин'
-      EditLabel.ParentColor = False
-      TabOrder = 1
-      Text = 'User1'
-    end
-    object edPassw: TLabeledEdit
-      Left = 8
-      Height = 23
-      Top = 112
-      Width = 160
-      EditLabel.Height = 15
-      EditLabel.Width = 160
-      EditLabel.Caption = 'Пароль'
-      EditLabel.ParentColor = False
-      TabOrder = 2
-      Text = '1111'
-    end
-  end
-  object lboxAddrList: TListBox
-    Left = 10
-    Height = 80
-    Top = 52
-    Width = 100
-    ItemHeight = 0
-    OnClick = lboxAddrListClick
-    TabOrder = 2
-  end
-  object gbDevInfo: TGroupBox
-    Left = 306
-    Height = 370
-    Top = 6
-    Width = 214
-    Caption = 'Информация о приборе'
-    ClientHeight = 350
-    ClientWidth = 210
-    TabOrder = 3
-    object memoDevInfo: TMemo
-      Left = 4
-      Height = 342
-      Top = 4
-      Width = 202
-      Align = alClient
-      BorderSpacing.Around = 4
-      TabOrder = 0
+    object tsDocs: TTabSheet
+      Caption = 'Документы'
+      ClientHeight = 359
+      ClientWidth = 521
+      object gbDocs: TGroupBox
+        Left = 0
+        Height = 144
+        Top = 0
+        Width = 521
+        Align = alTop
+        Caption = 'Документы'
+        ClientHeight = 124
+        ClientWidth = 517
+        TabOrder = 0
+        object lvDocs: TListView
+          Left = 4
+          Height = 116
+          Top = 4
+          Width = 509
+          Align = alClient
+          BorderSpacing.Around = 4
+          Columns = <          
+            item
+              Caption = 'Дата'
+              Width = 80
+            end          
+            item
+              Caption = 'Номер'
+            end          
+            item
+              Caption = 'Опер'
+            end          
+            item
+              AutoSize = True
+              Caption = 'Тип'
+              Width = 36
+            end>
+          GridLines = True
+          OwnerData = True
+          ReadOnly = True
+          RowSelect = True
+          TabOrder = 0
+          ViewStyle = vsReport
+          OnData = lvDocsData
+        end
+      end
     end
   end
   object alMain: TActionList
@@ -173,6 +236,11 @@ object FormMain: TFormMain
       Caption = 'Статистика продаж по времени'
       OnExecute = actRepExecute
     end
+    object actReqDocs: TAction
+      Category = 'Requests'
+      Caption = 'Запрос всех документов'
+      OnExecute = actReqDocsExecute
+    end
   end
   object Timer100ms: TTimer
     Interval = 100
@@ -232,6 +300,12 @@ object FormMain: TFormMain
       end
       object MenuItem17: TMenuItem
         Action = actRep107
+      end
+    end
+    object MenuItem18: TMenuItem
+      Caption = 'Запросы'
+      object MenuItem19: TMenuItem
+        Action = actReqDocs
       end
     end
   end

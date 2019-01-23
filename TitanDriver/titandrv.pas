@@ -11,8 +11,7 @@ unit TitanDrv;
 interface
 
 uses
-  Classes, SysUtils, DataPort, DataStorage, synsock, blcksock,
-  DataPortIP;
+  Classes, SysUtils, DataStorage, synsock, blcksock;
 
 const
   { типы отчетов с БЭП }
@@ -181,6 +180,8 @@ type
     { Отмена ресторанного счета }
     procedure AddCancelBill(ABillNo: Integer);
 
+    function GetDocTypeStr(): string;
+
     constructor Create(ADocType: TFrDocType);
 
     property DocType: TFrDocType read FDocType;
@@ -246,13 +247,11 @@ type
     FDocList: TFrDocList;
     // создаются в процессе работы
     FSession: TFrSession;
-    FDataPortUdp: TDataPortUDP;
     FUdpSocket: TUDPBlockSocket;
 
     FDevAddr: string;
     FDevLogin: string;
     FDevPassw: string;
-    FDataPort: TDataPort;
 
     FDevInfo: TFrDevInfo;
     FLastDocInfo: TFrDocInfo;
@@ -270,7 +269,7 @@ type
     { разбор ответа на запрос /cgi/chk }
     procedure ParseChk(AData: IDataStorage);
 
-    procedure OnUdpDataAppearHandler(Sender: TObject);
+    //procedure OnUdpDataAppearHandler(Sender: TObject);
   public
     IsStateUpdated: Boolean;
 
@@ -314,6 +313,10 @@ type
     procedure GetDevState();
     { запросить информацию о приборе }
     procedure GetDevInfo();
+    { запросить журнал документов
+      ADocID - ID документа, с которого нужно читать журнал до конца, если 0 то все
+      ADocNum - номер отдельного документа для чтения, если 0 то не нужен }
+    procedure GetDocs(ADocID: Integer = 0; ADocNum: Integer = 0);
 
     { Запустить обнаружение ФР в сети }
     procedure Discover();
@@ -326,8 +329,6 @@ type
     property DevAddr: string read FDevAddr write FDevAddr;
     property DevLogin: string read FDevLogin write FDevLogin;
     property DevPassw: string read FDevPassw write FDevPassw;
-
-    property DataPort: TDataPort read FDataPort write FDataPort;
 
     property DevInfo: TFrDevInfo read FDevInfo;
     property AddrList: TStringList read FFrAddrList;
@@ -830,6 +831,23 @@ begin
   end;
 end;
 
+function TFrDoc.GetDocTypeStr(): string;
+begin
+  case FDocType of
+    frdUnknown: Result := 'Неопределен';
+    frdFiscal: Result := 'Фискальный чек';
+    frdRefund: Result := 'Чек на возврат';
+    frdCashIO: Result := 'Внос/вынос денег';
+    frdVoiding: Result := 'Обнуление';
+    frdNonFiscal: Result := 'Нефискальный чек';
+    frdCopy: Result := 'Копия чека/заказа';
+    frdOrder: Result := 'Ресторанный заказ';
+    frdOrderCancel: Result := 'Отмена заказа';
+    frdLogin: Result := 'Регистрация кассира';
+    frdZReport: Result := 'Дневной Z-отчет';
+  end;
+end;
+
 constructor TFrDoc.Create(ADocType: TFrDocType);
 begin
   inherited Create();
@@ -925,6 +943,19 @@ end;
 procedure TTitanDriver.GetDevInfo();
 begin
   SendRequest(REQ_TYPE_DEV_INFO, '/cgi/dev_info', '');
+end;
+
+procedure TTitanDriver.GetDocs(ADocID: Integer; ADocNum: Integer);
+var
+  s: string;
+begin
+  s := '/cgi/chk';
+  if ADocID <> 0 then
+    s := s + '?id=' + IntToStr(ADocID)
+  else if ADocNum <> 0 then
+    s := s + '?no=' + IntToStr(ADocID);
+
+  SendRequest(REQ_TYPE_CHK, s, '');
 end;
 
 procedure TTitanDriver.SendAuth(ARequest: TFrRequest);
@@ -1217,6 +1248,7 @@ begin
   DocList.Add(TmpDoc);
 end;
 
+{
 procedure TTitanDriver.OnUdpDataAppearHandler(Sender: TObject);
 var
   s, sAddr: string;
@@ -1229,7 +1261,7 @@ begin
     if FFrAddrList.IndexOf(sAddr) = -1 then
       FFrAddrList.Add(sAddr);
   end;
-end;
+end; }
 
 procedure TTitanDriver.Discover();
 var
