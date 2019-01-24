@@ -14,6 +14,9 @@ type
 
   TFormMain = class(TForm)
     actDiscover: TAction;
+    actDocAddTestSale: TAction;
+    actDocAddTestIO: TAction;
+    actDocAddTestText: TAction;
     actReqDocs: TAction;
     actRep107: TAction;
     actRep102: TAction;
@@ -32,6 +35,8 @@ type
     actReqStatus: TAction;
     alMain: TActionList;
     btnDiscover: TButton;
+    btnCreateDoc: TButton;
+    btnAddLine: TButton;
     gbLogin: TGroupBox;
     edAddr: TLabeledEdit;
     edLogin: TLabeledEdit;
@@ -40,6 +45,7 @@ type
     gbDocs: TGroupBox;
     lboxAddrList: TListBox;
     lvDocs: TListView;
+    memoTestDocInfo: TMemo;
     memoDevInfo: TMemo;
     MenuItem1: TMenuItem;
     MenuItem10: TMenuItem;
@@ -53,6 +59,10 @@ type
     MenuItem18: TMenuItem;
     MenuItem19: TMenuItem;
     MenuItem2: TMenuItem;
+    MenuItem20: TMenuItem;
+    MenuItem21: TMenuItem;
+    MenuItem22: TMenuItem;
+    MenuItem23: TMenuItem;
     MenuItem3: TMenuItem;
     MenuItem4: TMenuItem;
     MenuItem5: TMenuItem;
@@ -62,10 +72,14 @@ type
     MenuItem9: TMenuItem;
     pgcMain: TPageControl;
     pmMain: TPopupMenu;
+    tsPrintDocs: TTabSheet;
     tsDocs: TTabSheet;
     tsMain: TTabSheet;
     Timer100ms: TTimer;
     procedure actDiscoverExecute(Sender: TObject);
+    procedure actDocAddTestIOExecute(Sender: TObject);
+    procedure actDocAddTestSaleExecute(Sender: TObject);
+    procedure actDocAddTestTextExecute(Sender: TObject);
     procedure actRepExecute(Sender: TObject);
     procedure actReqDevInfoExecute(Sender: TObject);
     procedure actReqDocsExecute(Sender: TObject);
@@ -80,7 +94,11 @@ type
     procedure Timer100msTimer(Sender: TObject);
   private
     FTitanDriver: TTitanDriver;
+    // Тестовый документ
+    FTestDoc: TFrDoc;
     procedure SetAccount();
+    // обновить расшифровку тестового чека
+    procedure UpdateTestDocInfo();
   public
     property TitanDriver: TTitanDriver read FTitanDriver;
   end;
@@ -138,6 +156,46 @@ procedure TFormMain.actDiscoverExecute(Sender: TObject);
 begin
   lboxAddrList.Items.Clear();
   TitanDriver.Discover();
+end;
+
+procedure TFormMain.actDocAddTestIOExecute(Sender: TObject);
+begin
+  if Assigned(FTestDoc) then
+    FreeAndNil(FTestDoc);
+  FTestDoc := TFrDoc.Create(frdCashIO);
+  FTestDoc.AddTextComment('Кассир: Светлана');
+  FTestDoc.AddCashIO(120);
+  FTestDoc.AddCashIO(-140, 2);
+  UpdateTestDocInfo();
+end;
+
+procedure TFormMain.actDocAddTestSaleExecute(Sender: TObject);
+begin
+  if Assigned(FTestDoc) then
+    FreeAndNil(FTestDoc);
+  FTestDoc := TFrDoc.Create(frdFiscal);
+  FTestDoc.AddTextComment('Кассир: Светлана');
+  FTestDoc.AddSale('Конфета', '1', 5);
+  FTestDoc.AddSale('Печенье', '2', 15, 0.5);
+  FTestDoc.AddDiscount(0, 5, True);
+  FTestDoc.AddPayment();
+  UpdateTestDocInfo();
+end;
+
+procedure TFormMain.actDocAddTestTextExecute(Sender: TObject);
+begin
+  if Assigned(FTestDoc) then
+    FreeAndNil(FTestDoc);
+  {FTestDoc := TFrDoc.Create(frd);
+  FTestDoc.AddPayment();
+  FTestDoc.AddTextComment('Line 1');
+  FTestDoc.AddTextComment('Line 2', TEXT_ATTR_WIDE);
+  FTestDoc.AddTextComment('Line 3');
+  FTestDoc.AddPayment();
+  FTestDoc.AddTextComment('Line 1');
+  FTestDoc.AddTextComment('Line 2', TEXT_ATTR_WIDE);
+  FTestDoc.AddTextComment('Line 3');   }
+  UpdateTestDocInfo();
 end;
 
 procedure TFormMain.actRepExecute(Sender: TObject);
@@ -273,6 +331,17 @@ begin
   TitanDriver.DevAddr := edAddr.Text;
   TitanDriver.DevLogin := edLogin.Text;
   TitanDriver.DevPassw := edPassw.Text;
+end;
+
+procedure TFormMain.UpdateTestDocInfo();
+begin
+  if Assigned(FTestDoc) then
+  begin
+    FTestDoc.FillDocInfoText(memoTestDocInfo.Lines);
+
+    memoTestDocInfo.Lines.Add('========');
+    memoTestDocInfo.Lines.Add(DataToJson(FTestDoc.Lines));
+  end;
 end;
 
 end.

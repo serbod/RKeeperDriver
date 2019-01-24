@@ -15,9 +15,9 @@ object FormMain: TFormMain
     Height = 387
     Top = 0
     Width = 529
-    ActivePage = tsMain
+    ActivePage = tsPrintDocs
     Align = alClient
-    TabIndex = 0
+    TabIndex = 2
     TabOrder = 0
     object tsMain: TTabSheet
       Caption = 'Основные свойства'
@@ -107,7 +107,7 @@ object FormMain: TFormMain
       end
     end
     object tsDocs: TTabSheet
-      Caption = 'Документы'
+      Caption = 'Лента чеков'
       ClientHeight = 359
       ClientWidth = 521
       object gbDocs: TGroupBox
@@ -151,6 +151,34 @@ object FormMain: TFormMain
           ViewStyle = vsReport
           OnData = lvDocsData
         end
+      end
+    end
+    object tsPrintDocs: TTabSheet
+      Caption = 'Печать чеков'
+      ClientHeight = 359
+      ClientWidth = 521
+      object btnCreateDoc: TButton
+        Left = 13
+        Height = 25
+        Top = 15
+        Width = 91
+        Caption = 'Создать чек'
+        TabOrder = 0
+      end
+      object btnAddLine: TButton
+        Left = 13
+        Height = 25
+        Top = 184
+        Width = 120
+        Caption = 'Добавить строку'
+        TabOrder = 1
+      end
+      object memoTestDocInfo: TMemo
+        Left = 240
+        Height = 338
+        Top = 7
+        Width = 275
+        TabOrder = 2
       end
     end
   end
@@ -241,6 +269,21 @@ object FormMain: TFormMain
       Caption = 'Запрос всех документов'
       OnExecute = actReqDocsExecute
     end
+    object actDocAddTestSale: TAction
+      Category = 'Docs'
+      Caption = 'Тестовый чек продажи'
+      OnExecute = actDocAddTestSaleExecute
+    end
+    object actDocAddTestIO: TAction
+      Category = 'Docs'
+      Caption = 'Чек служебного внесения денег'
+      OnExecute = actDocAddTestIOExecute
+    end
+    object actDocAddTestText: TAction
+      Category = 'Docs'
+      Caption = 'Печать текстовой информации'
+      OnExecute = actDocAddTestTextExecute
+    end
   end
   object Timer100ms: TTimer
     Interval = 100
@@ -306,6 +349,18 @@ object FormMain: TFormMain
       Caption = 'Запросы'
       object MenuItem19: TMenuItem
         Action = actReqDocs
+      end
+    end
+    object MenuItem20: TMenuItem
+      Caption = 'Документы'
+      object MenuItem21: TMenuItem
+        Action = actDocAddTestIO
+      end
+      object MenuItem22: TMenuItem
+        Action = actDocAddTestSale
+      end
+      object MenuItem23: TMenuItem
+        Action = actDocAddTestText
       end
     end
   end

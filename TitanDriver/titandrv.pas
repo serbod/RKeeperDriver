@@ -88,6 +88,8 @@ type
     Session: TFrSession;
     { момент времени отправки запроса }
     SendTimestamp: TDateTime;
+    { GET, POST }
+    Method: string;
     { тип запроса }
     RequestType: Integer;
     { URL запроса }
@@ -117,6 +119,8 @@ type
   TFrDoc = class(TObject)
   private
     FDocType: TFrDocType;
+    { Добавление содержимого строки заданного типа AName }
+    procedure AddNewLine(AItem: TDataStorage; AName: string);
   public
     Data: IDataStorage;
     Lines: IDataStorage;
@@ -142,18 +146,31 @@ type
     procedure AddSale(AName, ACode: string; APrice: Currency; AQty: Currency = 1;
       ATax: Integer = -1; ACType: Integer = 1;
       ADep: Integer = 1; AGrp: Integer = 1);
-    { строка скидки }
+    { строка скидки
+      ASum: сумма скидки или наценки, для процентных скидок = 0
+      APrc: процент скидки или наценки, если (ASum <> 0) то игнорируется
+      IsAll: скидка производится на промежуточный итог
+      ADn: номер подтверждения льготной скидки }
     procedure AddDiscount(ASum, APrc: Currency; IsAll: Boolean = False; ADn: Integer = 0);
-    { строка оплаты }
-    procedure AddPayment(ASum: Currency; ANo: Integer = 0);
-    { строка служебного внесения/изъятия средств }
-    procedure AddCashIO(ASum: Currency; ANo: Integer = 0);
-    { строка текстового комментария }
+    { строка оплаты
+      ASum: сумма оплаты, если 0 то оплата всего чека
+      APayNo: номер строки в таблице Pay, соответствующий типу оплаты. Если 0 то наличными }
+    procedure AddPayment(ASum: Currency = 0; APayNo: Integer = 0);
+    { строка служебного внесения/изъятия средств
+      ASum: с + внесение, с - изъятие
+      APayNo: номер строки в таблице Pay, соответствующий типу оплаты. Если 0 то наличными }
+    procedure AddCashIO(ASum: Currency; APayNo: Integer = 0);
+    { строка фискального текстового комментария }
     procedure AddTextComment(AText: string);
     { строка нефискального комментария
-      AAttr: модификатор ширины и высоты текста }
+      AAttr: модификатор ширины и высоты текста TEXT_ATTR_ }
     procedure AddNonFiscalComment(AText: string; AAttr: string = '');
-    { штрих-код }
+    { штрих-код
+      ACode: текст штрихкода, 1..24 знака
+      AType: 1 - EAN-13, 2 - CODE-128, 3 - CODE-39
+      AWidth: ширина символа в пикселях, 2..4
+      AHeight: высота штрихкода в пикселях, 1..150
+      AFeed: отступ до и после штрихкода в пикселях, 0..30 }
     procedure AddBarcode(ACode: string; AType: Integer = 1;
       AWidth: Integer = 2; AHeight: Integer = 60;
       AFeed: Integer = 20);
@@ -177,10 +194,12 @@ type
     procedure AddNewOrder(ABillNo: Integer);
     { Закрытые счета }
     procedure AddCloseBill(ABillNo: Integer);
-    { Отмена ресторанного счета }
+    { Отмена (обнуление) ресторанного счета }
     procedure AddCancelBill(ABillNo: Integer);
-
+    { Возвращает тип документа в виде строки }
     function GetDocTypeStr(): string;
+    { Возвращает текстовую расшифровку содержимого документа, для отладки }
+    procedure FillDocInfoText(ls: TStrings);
 
     constructor Create(ADocType: TFrDocType);
 
@@ -334,6 +353,8 @@ type
     property AddrList: TStringList read FFrAddrList;
     property DocList: TFrDocList read FDocList;
   end;
+
+  function DataToJson(AData: IDataStorage): string;
 
 implementation
 
@@ -594,30 +615,39 @@ end;
 
 { TFrDoc }
 
-procedure TFrDoc.AddSale(AName, ACode: string; APrice: Currency;
-  AQty: Currency; ATax: Integer; ACType: Integer; ADep: Integer; AGrp: Integer);
+procedure TFrDoc.AddNewLine(AItem: TDataStorage; AName: string);
 var
   dsLine: TDataStorage;
 begin
   if not Assigned(Lines) then Exit;
+  dsLine := TDataStorage.Create(stDictionary);
+  dsLine.SetValue(AItem, AName);
+  Lines.SetValue(dsLine);
+end;
+
+procedure TFrDoc.AddSale(AName, ACode: string; APrice: Currency;
+  AQty: Currency; ATax: Integer; ACType: Integer; ADep: Integer; AGrp: Integer);
+var
+  dsItem: TDataStorage;
+begin
   if FDocType in [frdFiscal, frdRefund, frdOrder] then
   begin
-    dsLine := TDataStorage.Create(stDictionary);
+    dsItem := TDataStorage.Create(stDictionary);
     if AQty <> 1 then
-      dsLine.SetValue(AQty, 'qty');
-    dsLine.SetValue(APrice, 'price');
-    dsLine.SetValue(AName, 'name');
-    dsLine.SetValue(ACode, 'code');
-    if ATax <> 0 then
-      dsLine.SetValue(ATax, 'tax');
+      dsItem.SetValue(AQty, 'qty');
+    dsItem.SetValue(APrice, 'price');
+    dsItem.SetValue(AName, 'name');
+    dsItem.SetValue(ACode, 'code');
+    if ATax <> -1 then
+      dsItem.SetValue(ATax, 'tax');
     if ACType <> 1 then
-      dsLine.SetValue(ACType, 'ctype');
+      dsItem.SetValue(ACType, 'ctype');
     if ADep <> 1 then
-      dsLine.SetValue(ADep, 'dep');
+      dsItem.SetValue(ADep, 'dep');
     if AGrp <> 1 then
-      dsLine.SetValue(AGrp, 'grp');
+      dsItem.SetValue(AGrp, 'grp');
 
-    Lines.SetValue(dsLine);
+    AddNewLine(dsItem, 'S');
   end;
 end;
 
@@ -639,11 +669,11 @@ begin
 
     dsLine.SetValue(ADn, 'dn');
 
-    Lines.SetValue(dsLine);
+    AddNewLine(dsLine, 'D');
   end;
 end;
 
-procedure TFrDoc.AddPayment(ASum: Currency; ANo: Integer);
+procedure TFrDoc.AddPayment(ASum: Currency; APayNo: Integer);
 var
   dsLine: TDataStorage;
 begin
@@ -654,14 +684,14 @@ begin
     if ASum <> 0 then
       dsLine.SetValue(ASum, 'sum');
 
-    if ANo <> 0 then
-      dsLine.SetValue(ANo, 'no');
+    if APayNo <> 0 then
+      dsLine.SetValue(APayNo, 'no');
 
-    Lines.SetValue(dsLine);
+    AddNewLine(dsLine, 'P');
   end;
 end;
 
-procedure TFrDoc.AddCashIO(ASum: Currency; ANo: Integer);
+procedure TFrDoc.AddCashIO(ASum: Currency; APayNo: Integer);
 var
   dsLine: TDataStorage;
 begin
@@ -672,10 +702,10 @@ begin
     dsLine.SetValue('IO', 'type');
     dsLine.SetValue(ASum, 'sum');
 
-    if ANo <> 0 then
-      dsLine.SetValue(ANo, 'no');
+    if APayNo <> 0 then
+      dsLine.SetValue(APayNo, 'no');
 
-    Lines.SetValue(dsLine);
+    AddNewLine(dsLine, 'IO');
   end;
 end;
 
@@ -687,9 +717,9 @@ begin
   if FDocType in [frdFiscal, frdRefund, frdCashIO, frdNonFiscal, frdOrder] then
   begin
     dsLine := TDataStorage.Create(stDictionary);
-    dsLine.SetValue(AText, 'Cm');
+    dsLine.SetValue(AText, 'cm');
 
-    Lines.SetValue(dsLine);
+    AddNewLine(dsLine, 'C');
   end;
 end;
 
@@ -701,12 +731,12 @@ begin
   if FDocType in [frdFiscal, frdRefund, frdCashIO, frdNonFiscal, frdOrder] then
   begin
     dsLine := TDataStorage.Create(stDictionary);
-    dsLine.SetValue(AText, 'Cm');
+    dsLine.SetValue(AText, 'cm');
 
     if AAttr <> '' then
-      dsLine.SetValue(AAttr, 'Attr');
+      dsLine.SetValue(AAttr, 'attr');
 
-    Lines.SetValue(dsLine);
+    AddNewLine(dsLine, 'N');
   end;
 end;
 
@@ -731,7 +761,7 @@ begin
     if AFeed <> 20 then
       dsLine.SetValue(AFeed, 'feed');
 
-    Lines.SetValue(dsLine);
+    AddNewLine(dsLine, 'BC');
   end;
 end;
 
@@ -744,7 +774,7 @@ begin
   begin
     dsLine := TDataStorage.Create(stDictionary);
     dsLine.SetValue(ANo, 'no');
-    Lines.SetValue(dsLine);
+    AddNewLine(dsLine, 'VD');
   end;
 end;
 
@@ -758,7 +788,7 @@ begin
     dsLine := TDataStorage.Create(stDictionary);
     if ACode <> '' then
       dsLine.SetValue(ACode, 'code');
-    Lines.SetValue(dsLine);
+    AddNewLine(dsLine, 'VP');
   end;
 end;
 
@@ -774,7 +804,7 @@ begin
       dsLine.SetValue(ABillNo, 'bill')
     else
       dsLine.SetValue(ADocNo, 'no');
-    Lines.SetValue(dsLine);
+    AddNewLine(dsLine, 'L');
   end;
 end;
 
@@ -788,7 +818,14 @@ begin
     dsLine := TDataStorage.Create(stDictionary);
     dsLine.SetValue(ATableNo, 'table');
     dsLine.SetValue(APlaceNo, 'place');
-    Lines.SetValue(dsLine);
+    { !! В документации так:
+      Имя поля: OB
+      Вид строки: Открытие нового счета
+    а ниже так:
+      Открытие ресторанного счета.
+      Значение поля NB есть объект с полями:
+    }
+    AddNewLine(dsLine, 'NB');
   end;
 end;
 
@@ -801,20 +838,7 @@ begin
   begin
     dsLine := TDataStorage.Create(stDictionary);
     dsLine.SetValue(ABillNo, 'bill');
-    Lines.SetValue(dsLine);
-  end;
-end;
-
-procedure TFrDoc.AddCloseBill(ABillNo: Integer);
-var
-  dsLine: TDataStorage;
-begin
-  if not Assigned(Lines) then Exit;
-  if FDocType in [frdFiscal] then
-  begin
-    dsLine := TDataStorage.Create(stDictionary);
-    dsLine.SetValue(ABillNo, 'bill');
-    Lines.SetValue(dsLine);
+    AddNewLine(dsLine, 'NO');
   end;
 end;
 
@@ -827,7 +851,20 @@ begin
   begin
     dsLine := TDataStorage.Create(stDictionary);
     dsLine.SetValue(ABillNo, 'bill');
-    Lines.SetValue(dsLine);
+    AddNewLine(dsLine, 'VB');
+  end;
+end;
+
+procedure TFrDoc.AddCloseBill(ABillNo: Integer);
+var
+  dsLine: TDataStorage;
+begin
+  if not Assigned(Lines) then Exit;
+  if FDocType in [frdFiscal] then
+  begin
+    dsLine := TDataStorage.Create(stDictionary);
+    dsLine.SetValue(ABillNo, 'bill');
+    AddNewLine(dsLine, 'CB');
   end;
 end;
 
@@ -846,6 +883,114 @@ begin
     frdLogin: Result := 'Регистрация кассира';
     frdZReport: Result := 'Дневной Z-отчет';
   end;
+end;
+
+procedure TFrDoc.FillDocInfoText(ls: TStrings);
+var
+  s, sType: string;
+  i: Integer;
+  cu: Currency;
+  TmpLine, TmpItem: IDataStorage;
+begin
+  if not Assigned(ls) then Exit;
+  ls.BeginUpdate();
+  ls.Clear();
+  if Assigned(Lines) then
+  begin
+    ls.Add(GetDocTypeStr() + ' (новый)');
+    ls.Add('========');
+    // чтение строк
+    for i := 0 to Lines.GetCount()-1 do
+    begin
+      TmpLine := Lines.GetObject(i); // строка чека
+      if TmpLine.GetCount() > 0 then
+      begin
+        sType := TmpLine.GetObjectName(0);
+        TmpItem := TmpLine.GetObject(0);
+        s := '';
+        if sType = 'S' then
+        begin
+          s := 'Продажа: qty=' + TmpItem.GetString('qty');
+          s := s + '  price=' + TmpItem.GetString('price');
+          s := s + '  name=' + TmpItem.GetString('name');
+          s := s + '  code=' + TmpItem.GetString('code');
+          s := s + '  tax=' + TmpItem.GetString('tax');
+          s := s + '  ctype=' + TmpItem.GetString('ctype');
+          s := s + '  dep=' + TmpItem.GetString('dep');
+          s := s + '  grp=' + TmpItem.GetString('grp');
+        end
+        else if sType = 'D' then
+        begin
+          s := 'Скидка: sum=' + TmpItem.GetString('sum');
+          s := s + '  prc=' + TmpItem.GetString('prc');
+          s := s + '  all=' + TmpItem.GetString('all');
+          s := s + '  dn=' + TmpItem.GetString('dn');
+        end
+        else if sType = 'P' then
+        begin
+          s := 'Оплата: sum=' + TmpItem.GetString('sum');
+          s := s + '  no=' + TmpItem.GetString('no');
+        end
+        else if sType = 'IO' then
+        begin
+          s := 'Внос/вынос: type=' + TmpItem.GetString('type');
+          s := s + '  sum=' + TmpItem.GetString('sum');
+          s := s + '  no=' + TmpItem.GetString('no');
+        end
+        else if sType = 'C' then
+        begin
+          s := 'Коммент(Ф): cm=' + TmpItem.GetString('cm');
+          s := s + '  attr=' + TmpItem.GetString('attr');
+        end
+        else if sType = 'N' then
+        begin
+          s := 'Коммент(НФ): cm=' + TmpItem.GetString('cm');
+          s := s + '  attr=' + TmpItem.GetString('attr');
+        end
+        else if sType = 'BC' then
+        begin
+          s := 'Штрихкод: code=' + TmpItem.GetString('code');
+          s := s + '  type=' + TmpItem.GetString('type');
+          s := s + '  width=' + TmpItem.GetString('width');
+          s := s + '  height=' + TmpItem.GetString('height');
+          s := s + '  feed=' + TmpItem.GetString('feed');
+        end
+        else if sType = 'VD' then
+        begin
+          s := 'Обнуление: no=' + TmpItem.GetString('no');
+        end
+        else if sType = 'VP' then
+        begin
+          s := 'Коррекция: code=' + TmpItem.GetString('code');
+        end
+        else if sType = 'L' then
+        begin
+          s := 'Копия: bill=' + TmpItem.GetString('bill');
+          s := s + '  no=' + TmpItem.GetString('no');
+        end
+        else if sType = 'NB' then
+        begin
+          s := 'Новый счет: table=' + TmpItem.GetString('table');
+          s := s + '  place=' + TmpItem.GetString('place');
+        end
+        else if sType = 'NO' then
+        begin
+          s := 'Новый заказ: bill=' + TmpItem.GetString('bill');
+        end
+        else if sType = 'VB' then
+        begin
+          s := 'Отмена счета: bill=' + TmpItem.GetString('bill');
+        end
+        else if sType = 'CB' then
+        begin
+          s := 'Закрытие счета: bill=' + TmpItem.GetString('bill');
+        end;
+        ls.Add('#' + IntToStr(i+1) + ' ' + s);
+      end;
+    end;
+  end;
+
+  ls.EndUpdate();
 end;
 
 constructor TFrDoc.Create(ADocType: TFrDocType);
@@ -986,7 +1131,10 @@ begin
   sUri := sPath;
   sName := DevLogin;
   sPwd := DevPassw;
-  sMethod := 'GET';
+  if ARequest.Method = '' then
+    sMethod := 'GET'
+  else
+    sMethod := ARequest.Method;
 
   ht := THttpSend.Create();
   slHeaders := TStringList.Create();
@@ -1100,6 +1248,7 @@ begin
   TmpReq.RequestUrl := AUrl;
   TmpReq.RequestJson := AJson;
   TmpReq.ResultJson := '';
+  TmpReq.Method := 'GET';
 
   SendAuth(TmpReq);
 
@@ -1315,12 +1464,29 @@ end;
 
 procedure TTitanDriver.SendFrDoc(AFrDoc: TFrDoc);
 var
-  sUrl: string;
-  sJson: string;
+  TmpReq: TFrRequest;
+  TmpData: IDataStorage;
 begin
   if not Assigned(AFrDoc) then Exit;
-  sUrl := '/cgi/chk';
-  sJson := DataToJson(AFrDoc.Data);
+
+  TmpReq := TFrRequest.Create();
+  TmpReq.SendTimestamp := Now();
+  TmpReq.RequestType := REQ_TYPE_CHK;
+  TmpReq.RequestUrl := '/cgi/chk';
+  TmpReq.RequestJson := DataToJson(AFrDoc.Data);
+  TmpReq.ResultJson := '';
+  TmpReq.Method := 'POST';
+
+  SendAuth(TmpReq);
+
+  if TmpReq.ResultJson <> '' then
+  begin
+    // разбор ответа
+    TmpData := JsonToData(TmpReq.ResultJson);
+    if not Assigned(TmpData) then Exit;
+
+    ParseReqResult(TmpReq.RequestType, TmpData);
+  end;
 end;
 
 end.
