@@ -3,7 +3,6 @@
   Бодров Сергей (www.serbod.com)
 
   кодировка по умолчанию - CP-1251
-  логин:пароль по умолчанию - service : 751426
 }
 unit TitanDrv;
 
@@ -12,7 +11,7 @@ unit TitanDrv;
 interface
 
 uses
-  Classes, SysUtils, DataStorage, synsock, blcksock, httpsend;
+  Classes, SysUtils, DataStorage, synsock, blcksock;
 
 const
   { типы отчетов с БЭП }
@@ -143,16 +142,7 @@ type
     // уникальный идентификатор документа
     UID: string;
 
-    { строка продажи
-      AName: название товара
-      ACode: код товара из не более чем 13 цифр
-      APrice: цена
-      AQty: количество
-      ATax: номер налоговой ставки из таблицы Tax
-      ACType: Тип кода товара 0-без EAN, 1-EAN, 2-услуга
-      ADep: номер секции из таблицы Dep
-      AGrp: номер группы из таблицы Grp
-      }
+    { строка продажи }
     procedure AddSale(AName, ACode: string; APrice: Currency; AQty: Currency = 1;
       ATax: Integer = -1; ACType: Integer = 1;
       ADep: Integer = 1; AGrp: Integer = 1);
@@ -171,10 +161,10 @@ type
       APayNo: номер строки в таблице Pay, соответствующий типу оплаты. Если 0 то наличными }
     procedure AddCashIO(ASum: Currency; APayNo: Integer = 0);
     { строка фискального текстового комментария }
-    procedure AddFiscalComment(AText: string; AAttr: string = '');
+    procedure AddTextComment(AText: string);
     { строка нефискального комментария
       AAttr: модификатор ширины и высоты текста TEXT_ATTR_ }
-    procedure AddText(AText: string; AAttr: string = '');
+    procedure AddNonFiscalComment(AText: string; AAttr: string = '');
     { штрих-код
       ACode: текст штрихкода, 1..24 знака
       AType: 1 - EAN-13, 2 - CODE-128, 3 - CODE-39
@@ -275,7 +265,6 @@ type
     FFrAddrList: TStringList;
     FDocList: TFrDocList;
     // создаются в процессе работы
-    FHttpSend: THttpSend;
     FSession: TFrSession;
     FUdpSocket: TUDPBlockSocket;
 
@@ -302,9 +291,6 @@ type
     //procedure OnUdpDataAppearHandler(Sender: TObject);
   public
     IsStateUpdated: Boolean;
-
-    IsResponseUpdated: Boolean;
-    LastHttpResponse: string;
 
     procedure AfterConstruction(); override;
     procedure BeforeDestruction(); override;
@@ -357,7 +343,6 @@ type
     { Такт, вызывается каждые 100 мс }
     procedure Tick();
 
-    { печать чека }
     procedure SendFrDoc(AFrDoc: TFrDoc);
 
     property DevAddr: string read FDevAddr write FDevAddr;
@@ -374,7 +359,7 @@ type
 implementation
 
 uses
-  JsonStorage, md5, DateUtils, synautil;
+  JsonStorage, HttpSend, md5, DateUtils, synautil;
 
 const
 
@@ -604,8 +589,6 @@ begin
   AHttpSend.Clear();
   AHttpSend.Headers.Clear();
   AHttpSend.Protocol := '1.1';
-  //AHttpSend.Timeout := 5000;
-  //AHttpSend.KeepAliveTimeout := 5;
   //AHttpSend.Headers.Add('User-Agent: serbod');
 
   //AHttpSend.Headers.Add('Connection: keep-alive');
@@ -726,7 +709,7 @@ begin
   end;
 end;
 
-procedure TFrDoc.AddFiscalComment(AText: string; AAttr: string = '');
+procedure TFrDoc.AddTextComment(AText: string);
 var
   dsLine: TDataStorage;
 begin
@@ -736,14 +719,11 @@ begin
     dsLine := TDataStorage.Create(stDictionary);
     dsLine.SetValue(AText, 'cm');
 
-    if AAttr <> '' then
-      dsLine.SetValue(AAttr, 'attr');
-
     AddNewLine(dsLine, 'C');
   end;
 end;
 
-procedure TFrDoc.AddText(AText: string; AAttr: string);
+procedure TFrDoc.AddNonFiscalComment(AText: string; AAttr: string);
 var
   dsLine: TDataStorage;
 begin
@@ -1045,8 +1025,6 @@ end;
 
 procedure TTitanDriver.BeforeDestruction();
 begin
-  if Assigned(FHttpSend) then
-    FreeAndNil(FHttpSend);
   FreeAndNil(FDocList);
   FreeAndNil(FFrAddrList);
   inherited BeforeDestruction();
@@ -1127,19 +1105,17 @@ end;
 
 procedure TTitanDriver.SendAuth(ARequest: TFrRequest);
 var
+  ht: THttpSend;
   slHeaders, slCookies: TStringList;
   x, y: Integer;
   isOk: Boolean;
   h1, h2, h3, sProt, sName, sPwd, sURI, sUrl: string;
   sUsr0, sPas0, sHost, sPort, sPath, sParams: string;
-  sStr, sMethod: string;
+  aStr, sMethod: string;
   //wPort: Word;
 begin
   if not Assigned(FSession) then
     FSession := TFrSession.Create();
-
-  if not Assigned(FHttpSend) then
-    FHttpSend := THTTPSend.Create();
 
   sUrl := 'http://' + Self.DevAddr + ARequest.RequestUrl;
   sProt := '';
@@ -1155,27 +1131,20 @@ begin
   sUri := sPath;
   sName := DevLogin;
   sPwd := DevPassw;
+  if ARequest.Method = '' then
+    sMethod := 'GET'
+  else
+    sMethod := ARequest.Method;
 
+  ht := THttpSend.Create();
   slHeaders := TStringList.Create();
   slCookies := TStringList.Create();
-  LastHttpResponse := 'Waiting for result...';
 
   try
-    SetDefaultHeaders(FHttpSend);
-    if ARequest.Method = '' then
-      sMethod := 'GET'
-    else
-    begin
-      sMethod := ARequest.Method;
-      sStr := ARequest.RequestJson;
-      FHttpSend.MimeType := 'text/plain;charset=UTF-8';
-      FHttpSend.Document.Size := 0;
-      FHttpSend.Document.WriteBuffer(PAnsiChar(sStr)^, Length(sStr));
-    end;
-
+    SetDefaultHeaders(ht);
     if FSession.nonce <> '' then
     begin
-      FHttpSend.Headers.Add('Authorization: Digest username=' + AnsiQuotedStr(sName, #34)
+      ht.Headers.Add('Authorization: Digest username=' + AnsiQuotedStr(sName, #34)
       + ', realm=' + AnsiQuotedStr(FSession.realm, #34)
       + ', nonce=' + AnsiQuotedStr(FSession.nonce, #34)
       + ', uri=' + AnsiQuotedStr(sUri, #34)
@@ -1186,39 +1155,31 @@ begin
       + ', response=' + AnsiQuotedStr(FSession.response, #34));
     end;
 
-    sStr := ReadStrFromStream(FHttpSend.Document, FHttpSend.Document.Size);
-    StrToFile('http_req.txt', sMethod + ' ' + sUrl + sLineBreak + FHttpSend.Headers.Text + sLineBreak + sStr);
-
-    isOk := FHttpSend.HTTPMethod(sMethod, sUrl);
-
-    FHttpSend.Document.Position := 0;
-    sStr := ReadStrFromStream(FHttpSend.Document, FHttpSend.Document.Size);
-    StrToFile('http_result.txt', FHttpSend.ResultString + sLineBreak + FHttpSend.Headers.Text + sLineBreak + sStr);
-    StrToFile('http_result_body.txt', sStr);
-
-    if (FHttpSend.ResultCode = 401) then
+    ht.Timeout := 2;
+    isOk := ht.HTTPMethod(sMethod, sUrl);
+    if (ht.ResultCode = 401) then
     begin
-      slCookies.Text := FHttpSend.Cookies.Text;
-      for x:= 0 to Pred(FHttpSend.Headers.Count) do
+      slCookies.Text := ht.Cookies.Text;
+      for x:= 0 to Pred(ht.Headers.Count) do
       begin
-        if LeftStr(UpperCase(FHttpSend.Headers.Strings[x]), 24) = 'WWW-AUTHENTICATE: DIGEST' then
+        if LeftStr(UpperCase(ht.Headers.Strings[x]), 24) = 'WWW-AUTHENTICATE: DIGEST' then
         begin
           slHeaders.Clear;
           slHeaders.StrictDelimiter := true;
           slHeaders.Delimiter := ',';
-          slHeaders.DelimitedText := Trim(Copy(FHttpSend.Headers.Strings[x], 25, 400));
+          slHeaders.DelimitedText := Trim(Copy(ht.Headers.Strings[x], 25, 400));
 
           for y := 0 to pred(slHeaders.Count) do
           begin
-            sStr := Trim(slHeaders.Strings[y]);
-            if LeftStr(sStr, 5) = 'realm' then
-              FSession.realm := StripQuotes(Copy(sStr, 7, Length(sStr)));
-            if LeftStr(sStr, 5) = 'nonce' then
-              FSession.nonce := StripQuotes(Copy(sStr, 7, Length(sStr)));
-            if LeftStr(sStr, 3) = 'qop' then
-              FSession.qop := StripQuotes(Copy(sStr, 5, Length(sStr)));
-            if LeftStr(sStr, 6) = 'opaque' then
-              FSession.opaque := StripQuotes(Copy(sStr, 8, Length(sStr)));
+            aStr := Trim(slHeaders.Strings[y]);
+            if LeftStr(aStr, 5) = 'realm' then
+              FSession.realm := StripQuotes(Copy(aStr, 7, Length(aStr)));
+            if LeftStr(aStr, 5) = 'nonce' then
+              FSession.nonce := StripQuotes(Copy(aStr, 7, Length(aStr)));
+            if LeftStr(aStr, 3) = 'qop' then
+              FSession.qop := StripQuotes(Copy(aStr, 5, Length(aStr)));
+            if LeftStr(aStr, 6) = 'opaque' then
+              FSession.opaque := StripQuotes(Copy(aStr, 8, Length(aStr)));
           end;
 
           isOk := False;
@@ -1241,9 +1202,9 @@ begin
           h3 := md5Print(md5String(h1 + ':' + FSession.nonce + ':' + FSession.nc + ':' + FSession.cnonce + ':' + FSession.qop + ':' + h2 ));
           FSession.response := h3;
 
-          SetDefaultHeaders(FHttpSend);
-          FHttpSend.Cookies.Text := slCookies.Text;
-          FHttpSend.Headers.Add('Authorization: Digest username=' + AnsiQuotedStr(sName, #34)
+          SetDefaultHeaders(ht);
+          ht.Cookies.Text := slCookies.Text;
+          ht.Headers.Add('Authorization: Digest username=' + AnsiQuotedStr(sName, #34)
           + ', realm=' + AnsiQuotedStr(FSession.realm, #34)
           + ', nonce=' + AnsiQuotedStr(FSession.nonce, #34)
           + ', uri=' + AnsiQuotedStr(sUri, #34)
@@ -1253,7 +1214,7 @@ begin
           + ', cnonce=' + AnsiQuotedStr(FSession.cnonce, #34)
           + ', response=' + AnsiQuotedStr(FSession.response, #34));
 
-          isOk := FHttpSend.HTTPMethod(sMethod, sUrl);
+          isOk := ht.HTTPMethod(sMethod, sUrl);
           Break;
         end;
       end;
@@ -1261,17 +1222,16 @@ begin
 
     if IsOk then
     begin
-      FHttpSend.Document.Seek(0,0);
-      ARequest.ResultJson := ReadStrFromStream(FHttpSend.Document, FHttpSend.Document.Size);
+      ht.Document.Seek(0,0);
+      ARequest.ResultJson := ReadStrFromStream(ht.Document, ht.Document.Size);
       StrToFile('doc_body.json', ARequest.ResultJson);
     end;
-    ARequest.ResultHeaders := IntToStr(FHttpSend.ResultCode) + ' ' + FHttpSend.ResultString + sLineBreak + FHttpSend.Headers.Text;
-    LastHttpResponse := ARequest.ResultHeaders + #13 + #13 + ARequest.ResultJson;
-    IsResponseUpdated := True;
+    ARequest.ResultHeaders := IntToStr(ht.ResultCode) + ' ' + ht.ResultString + #13 + ht.Headers.Text;
     StrToFile('result_headers.txt', ARequest.ResultHeaders);
     FSession.OldNonce := FSession.nonce;
     FSession.OldcNonce := FSession.cnonce;
   finally
+    ht.Free();
     slHeaders.Free();
     slCookies.Free();
   end;
@@ -1307,9 +1267,6 @@ begin
 end;
 
 procedure TTitanDriver.ParseReqResult(AReqType: Integer; AData: IDataStorage);
-var
-  i: Integer;
-  tmpData, tmpItem: IDataStorage;
 begin
   case AReqType of
     REQ_TYPE_DEV_INFO:
@@ -1335,21 +1292,7 @@ begin
       FDevInfo.IsFiscalization := AData.GetBool('Fiscalization');
       FDevInfo.IsFskMode := AData.GetBool('FskMode');
       FDevInfo.SknoState := AData.GetInteger('SKNOState');
-      if AData.HaveName('err') then
-      begin
-        // "err":[{"e":"No fiscal printer mode"}]
-        tmpData := AData.GetObject('err');
-        if Assigned(tmpData) and (tmpData.GetStorageType() = stList) then
-        begin
-          for i := 0 to tmpData.GetCount()-1 do
-          begin
-            tmpItem := tmpData.GetObject(i);
-            if FDevInfo.Err <> '' then
-              FDevInfo.Err := FDevInfo.Err + '; ';
-            FDevInfo.Err := FDevInfo.Err + tmpItem.GetString('e');
-          end;
-        end;
-      end;
+      FDevInfo.Err := AData.GetString('err');
     end;
 
     REQ_TYPE_GETFMROOM:
@@ -1472,11 +1415,10 @@ end; }
 procedure TTitanDriver.Discover();
 var
   s, sr, sAddr: AnsiString;
-  i: Integer;
 begin
   s := 'M-SEARCH * HTTP/1.1' + #13 + #10
-     //+ 'Host:239.255.255.250:1900' + #13 + #10
-     + 'ST:urn:help-micro.kiev.ua:device:webdev:1' + #13 + #10
+     + 'Host:239.255.255.250:1900' + #13 + #10
+     //+ 'ST:urn:help-micro.kiev.ua:device:webdev:1' + #13 + #10
      + 'ST:upnp:rootdevice' + #13 + #10
      + 'Man:"ssdp:discover"' + #13 + #10
      + 'MX:3' + #13 + #10 + #13 + #10;
@@ -1500,20 +1442,13 @@ begin
     //FUdpSocket.Bind('0.0.0.0', '1900');
     FUdpSocket.Connect('239.255.255.250', '1900');
     FUdpSocket.SendString(s);
-    for i := 1 to 6 do
+    sr := FUdpSocket.RecvPacket(3000);
+    if Pos('HTTP/1.1 200 OK', sr) > 0 then
     begin
-      sr := FUdpSocket.RecvPacket(500);
-      if Pos('HTTP/1.1 200 OK', sr) > 0 then
-      begin
-        sAddr := FUdpSocket.GetRemoteSinIP();
-        // добавление в список известных ФР
-        if FFrAddrList.IndexOf(sAddr) = -1 then
-        begin
-          FFrAddrList.Add(sAddr);
-          StrToFile(sAddr + '.txt', sr);
-        end;
-
-      end;
+      sAddr := FUdpSocket.GetRemoteSinIP();
+      // добавление в список известных ФР
+      if FFrAddrList.IndexOf(sAddr) = -1 then
+        FFrAddrList.Add(sAddr);
     end;
     FreeAndNil(FUdpSocket);
   end;

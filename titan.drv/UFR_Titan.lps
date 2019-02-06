@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CONFIG>
+  <ProjectSession>
+    <PathDelim Value="\"/>
+    <Version Value="11"/>
+    <BuildModes Active="Default"/>
+    <Units Count="5">
+      <Unit0>
+        <Filename Value="UFR_Titan.dpr"/>
+        <IsPartOfProject Value="True"/>
+        <IsVisibleTab Value="True"/>
+        <TopLine Value="245"/>
+        <CursorPos X="17" Y="366"/>
+        <UsageCount Value="22"/>
+        <Loaded Value="True"/>
+        <DefaultSyntaxHighlighter Value="Delphi"/>
+      </Unit0>
+      <Unit1>
+        <Filename Value="ufrtypes.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="UfrTypes"/>
+        <UsageCount Value="22"/>
+        <DefaultSyntaxHighlighter Value="Delphi"/>
+      </Unit1>
+      <Unit2>
+        <Filename Value="ufrxmltoolsfp.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="UfrXmlToolsFp"/>
+        <UsageCount Value="22"/>
+        <DefaultSyntaxHighlighter Value="Delphi"/>
+      </Unit2>
+      <Unit3>
+        <Filename Value="..\UFRCommon.pas"/>
+        <UsageCount Value="21"/>
+        <DefaultSyntaxHighlighter Value="Delphi"/>
+      </Unit3>
+      <Unit4>
+        <Filename Value="titandrv.pas"/>
+        <UnitName Value="TitanDrv"/>
+        <EditorIndex Value="1"/>
+        <TopLine Value="334"/>
+        <CursorPos X="57" Y="342"/>
+        <UsageCount Value="10"/>
+        <Loaded Value="True"/>
+        <DefaultSyntaxHighlighter Value="Delphi"/>
+      </Unit4>
+    </Units>
+    <JumpHistory Count="13" HistoryIndex="12">
+      <Position1>
+        <Filename Value="UFR_Titan.dpr"/>
+        <Caret Line="280" Column="13" TopLine="266"/>
+      </Position1>
+      <Position2>
+        <Filename Value="UFR_Titan.dpr"/>
+        <Caret Line="24" Column="45"/>
+      </Position2>
+      <Position3>
+        <Filename Value="UFR_Titan.dpr"/>
+        <Caret Line="280" Column="13" TopLine="264"/>
+      </Position3>
+      <Position4>
+        <Filename Value="UFR_Titan.dpr"/>
+        <Caret Line="14" Column="19"/>
+      </Position4>
+      <Position5>
+        <Filename Value="UFR_Titan.dpr"/>
+        <Caret Line="299" Column="63" TopLine="277"/>
+      </Position5>
+      <Position6>
+        <Filename Value="UFR_Titan.dpr"/>
+        <Caret Line="311" Column="42" TopLine="289"/>
+      </Position6>
+      <Position7>
+        <Filename Value="UFR_Titan.dpr"/>
+        <Caret Line="242" Column="18" TopLine="226"/>
+      </Position7>
+      <Position8>
+        <Filename Value="UFR_Titan.dpr"/>
+        <Caret Line="225" Column="4" TopLine="209"/>
+      </Position8>
+      <Position9>
+        <Filename Value="UFR_Titan.dpr"/>
+        <Caret Line="243" Column="2" TopLine="222"/>
+      </Position9>
+      <Position10>
+        <Filename Value="UFR_Titan.dpr"/>
+        <Caret Line="311" Column="42" TopLine="290"/>
+      </Position10>
+      <Position11>
+        <Filename Value="UFR_Titan.dpr"/>
+        <Caret Line="153" Column="65" TopLine="134"/>
+      </Position11>
+      <Position12>
+        <Filename Value="UFR_Titan.dpr"/>
+        <Caret Line="174" Column="44" TopLine="143"/>
+      </Position12>
+      <Position13>
+        <Filename Value="titandrv.pas"/>
+        <Caret Line="344" Column="18" TopLine="335"/>
+      </Position13>
+    </JumpHistory>
+    <RunParams>
+      <FormatVersion Value="2"/>
+      <Modes Count="0" ActiveMode=""/>
+    </RunParams>
+  </ProjectSession>
+</CONFIG>

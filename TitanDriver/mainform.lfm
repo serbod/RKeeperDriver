@@ -9,7 +9,7 @@ object FormMain: TFormMain
   OnCreate = FormCreate
   OnDestroy = FormDestroy
   PopupMenu = pmMain
-  LCLVersion = '2.1.0.0'
+  LCLVersion = '1.8.4.0'
   object pgcMain: TPageControl
     Left = 0
     Height = 387
@@ -45,30 +45,50 @@ object FormMain: TFormMain
           Height = 23
           Top = 24
           Width = 160
+          EditLabel.AnchorSideLeft.Control = edAddr
+          EditLabel.AnchorSideRight.Control = edAddr
+          EditLabel.AnchorSideRight.Side = asrBottom
+          EditLabel.AnchorSideBottom.Control = edAddr
+          EditLabel.Left = 8
           EditLabel.Height = 15
+          EditLabel.Top = 6
           EditLabel.Width = 160
           EditLabel.Caption = 'Адрес ФР'
           EditLabel.ParentColor = False
           TabOrder = 0
+          OnEditingDone = edAddrEditingDone
         end
         object edLogin: TLabeledEdit
           Left = 8
           Height = 23
           Top = 72
           Width = 160
+          EditLabel.AnchorSideLeft.Control = edLogin
+          EditLabel.AnchorSideRight.Control = edLogin
+          EditLabel.AnchorSideRight.Side = asrBottom
+          EditLabel.AnchorSideBottom.Control = edLogin
+          EditLabel.Left = 8
           EditLabel.Height = 15
+          EditLabel.Top = 54
           EditLabel.Width = 160
           EditLabel.Caption = 'Логин'
           EditLabel.ParentColor = False
           TabOrder = 1
-          Text = 'User1'
+          Text = '1'
+          OnEditingDone = edLoginEditingDone
         end
         object edPassw: TLabeledEdit
           Left = 8
           Height = 23
           Top = 112
           Width = 160
+          EditLabel.AnchorSideLeft.Control = edPassw
+          EditLabel.AnchorSideRight.Control = edPassw
+          EditLabel.AnchorSideRight.Side = asrBottom
+          EditLabel.AnchorSideBottom.Control = edPassw
+          EditLabel.Left = 8
           EditLabel.Height = 15
+          EditLabel.Top = 94
           EditLabel.Width = 160
           EditLabel.Caption = 'Пароль'
           EditLabel.ParentColor = False
@@ -104,6 +124,13 @@ object FormMain: TFormMain
           BorderSpacing.Around = 4
           TabOrder = 0
         end
+      end
+      object MemoHttpHeaders: TMemo
+        Left = 8
+        Height = 176
+        Top = 176
+        Width = 287
+        TabOrder = 4
       end
     end
     object tsDocs: TTabSheet
@@ -158,19 +185,21 @@ object FormMain: TFormMain
       ClientHeight = 359
       ClientWidth = 521
       object btnCreateDoc: TButton
-        Left = 13
+        Left = 8
         Height = 25
-        Top = 15
+        Top = 40
         Width = 91
         Caption = 'Создать чек'
+        OnClick = btnCreateDocClick
         TabOrder = 0
       end
       object btnAddLine: TButton
-        Left = 13
+        Left = 8
         Height = 25
-        Top = 184
+        Top = 264
         Width = 120
         Caption = 'Добавить строку'
+        OnClick = btnAddLineClick
         TabOrder = 1
       end
       object memoTestDocInfo: TMemo
@@ -180,11 +209,260 @@ object FormMain: TFormMain
         Width = 275
         TabOrder = 2
       end
+      object btnDocPrint: TButton
+        Left = 8
+        Height = 25
+        Top = 312
+        Width = 120
+        Action = actDocPrint
+        TabOrder = 3
+      end
+      object cbDocType: TComboBox
+        Left = 8
+        Height = 23
+        Top = 8
+        Width = 212
+        ItemHeight = 15
+        TabOrder = 4
+        Text = 'cbDocType'
+      end
+      object pgcDocLine: TPageControl
+        Left = 8
+        Height = 179
+        Top = 77
+        Width = 212
+        ActivePage = tsDocDiscount
+        TabIndex = 1
+        TabOrder = 5
+        object tsDocSale: TTabSheet
+          Caption = '(S) продажа'
+          ClientHeight = 151
+          ClientWidth = 204
+          object edDocSaleCode: TLabeledEdit
+            Left = 0
+            Height = 23
+            Top = 24
+            Width = 80
+            Alignment = taRightJustify
+            EditLabel.AnchorSideLeft.Control = edDocSaleCode
+            EditLabel.AnchorSideRight.Control = edDocSaleCode
+            EditLabel.AnchorSideRight.Side = asrBottom
+            EditLabel.AnchorSideBottom.Control = edDocSaleCode
+            EditLabel.Left = 0
+            EditLabel.Height = 15
+            EditLabel.Top = 6
+            EditLabel.Width = 80
+            EditLabel.Caption = 'Код'
+            EditLabel.ParentColor = False
+            TabOrder = 0
+            Text = '0'
+          end
+          object edDocSaleName: TLabeledEdit
+            Left = 0
+            Height = 23
+            Top = 72
+            Width = 192
+            EditLabel.AnchorSideLeft.Control = edDocSaleName
+            EditLabel.AnchorSideRight.Control = edDocSaleName
+            EditLabel.AnchorSideRight.Side = asrBottom
+            EditLabel.AnchorSideBottom.Control = edDocSaleName
+            EditLabel.Left = 0
+            EditLabel.Height = 15
+            EditLabel.Top = 54
+            EditLabel.Width = 192
+            EditLabel.Caption = 'Название'
+            EditLabel.ParentColor = False
+            TabOrder = 1
+          end
+          object edDocSalePrice: TLabeledEdit
+            Left = 88
+            Height = 23
+            Top = 24
+            Width = 48
+            Alignment = taRightJustify
+            EditLabel.AnchorSideLeft.Control = edDocSalePrice
+            EditLabel.AnchorSideRight.Control = edDocSalePrice
+            EditLabel.AnchorSideRight.Side = asrBottom
+            EditLabel.AnchorSideBottom.Control = edDocSalePrice
+            EditLabel.Left = 88
+            EditLabel.Height = 15
+            EditLabel.Top = 6
+            EditLabel.Width = 48
+            EditLabel.Caption = 'Цена'
+            EditLabel.ParentColor = False
+            TabOrder = 2
+            Text = '0'
+          end
+          object edDocSaleQty: TLabeledEdit
+            Left = 144
+            Height = 23
+            Top = 24
+            Width = 48
+            Alignment = taRightJustify
+            EditLabel.AnchorSideLeft.Control = edDocSaleQty
+            EditLabel.AnchorSideRight.Control = edDocSaleQty
+            EditLabel.AnchorSideRight.Side = asrBottom
+            EditLabel.AnchorSideBottom.Control = edDocSaleQty
+            EditLabel.Left = 144
+            EditLabel.Height = 15
+            EditLabel.Top = 6
+            EditLabel.Width = 48
+            EditLabel.Caption = 'Кол-во'
+            EditLabel.ParentColor = False
+            TabOrder = 3
+            Text = '0'
+          end
+          object edDocSaleTax: TLabeledEdit
+            Left = 56
+            Height = 23
+            Top = 112
+            Width = 40
+            Alignment = taRightJustify
+            EditLabel.AnchorSideLeft.Control = edDocSaleTax
+            EditLabel.AnchorSideRight.Control = edDocSaleTax
+            EditLabel.AnchorSideRight.Side = asrBottom
+            EditLabel.AnchorSideBottom.Control = edDocSaleTax
+            EditLabel.Left = 56
+            EditLabel.Height = 15
+            EditLabel.Top = 94
+            EditLabel.Width = 40
+            EditLabel.Caption = 'Налог'
+            EditLabel.ParentColor = False
+            TabOrder = 4
+            Text = '0'
+          end
+          object edDocSaleDep: TLabeledEdit
+            Left = 104
+            Height = 23
+            Top = 112
+            Width = 40
+            Alignment = taRightJustify
+            EditLabel.AnchorSideLeft.Control = edDocSaleDep
+            EditLabel.AnchorSideRight.Control = edDocSaleDep
+            EditLabel.AnchorSideRight.Side = asrBottom
+            EditLabel.AnchorSideBottom.Control = edDocSaleDep
+            EditLabel.Left = 104
+            EditLabel.Height = 15
+            EditLabel.Top = 94
+            EditLabel.Width = 40
+            EditLabel.Caption = 'Отдел'
+            EditLabel.ParentColor = False
+            TabOrder = 5
+            Text = '0'
+          end
+          object edDocSaleGrp: TLabeledEdit
+            Left = 152
+            Height = 23
+            Top = 112
+            Width = 40
+            Alignment = taRightJustify
+            EditLabel.AnchorSideLeft.Control = edDocSaleGrp
+            EditLabel.AnchorSideRight.Control = edDocSaleGrp
+            EditLabel.AnchorSideRight.Side = asrBottom
+            EditLabel.AnchorSideBottom.Control = edDocSaleGrp
+            EditLabel.Left = 152
+            EditLabel.Height = 15
+            EditLabel.Top = 94
+            EditLabel.Width = 40
+            EditLabel.Caption = 'Группа'
+            EditLabel.ParentColor = False
+            TabOrder = 6
+            Text = '0'
+          end
+          object edDocSaleCType: TLabeledEdit
+            Left = 0
+            Height = 23
+            Hint = '0 - без EAN'#13#10'1 - EAN'#13#10'2 - услуга'
+            Top = 112
+            Width = 40
+            Alignment = taRightJustify
+            EditLabel.AnchorSideLeft.Control = edDocSaleCType
+            EditLabel.AnchorSideRight.Control = edDocSaleCType
+            EditLabel.AnchorSideRight.Side = asrBottom
+            EditLabel.AnchorSideBottom.Control = edDocSaleCType
+            EditLabel.Left = 0
+            EditLabel.Height = 15
+            EditLabel.Top = 94
+            EditLabel.Width = 40
+            EditLabel.Caption = 'Тип'
+            EditLabel.ParentColor = False
+            ParentShowHint = False
+            ShowHint = True
+            TabOrder = 7
+            Text = '0'
+          end
+        end
+        object tsDocDiscount: TTabSheet
+          Caption = '(D) скидка'
+        end
+        object tsDocPayment: TTabSheet
+          Caption = '(P) оплата'
+        end
+        object tsDocCashIO: TTabSheet
+          Caption = '(IO) внос/вынос'
+        end
+        object tsDocFisText: TTabSheet
+          Caption = '(C) ф.текст'
+        end
+        object tsDocText: TTabSheet
+          Caption = '(N) текст'
+        end
+        object tsDocBarcode: TTabSheet
+          Caption = '(BC) штрихкод'
+        end
+        object tsDocVoiding: TTabSheet
+          Caption = '(VD) отмена'
+          ClientHeight = 95
+          ClientWidth = 204
+          object edDocVoidingNo: TLabeledEdit
+            Left = 8
+            Height = 23
+            Top = 24
+            Width = 184
+            Alignment = taRightJustify
+            EditLabel.AnchorSideLeft.Control = edDocVoidingNo
+            EditLabel.AnchorSideRight.Control = edDocVoidingNo
+            EditLabel.AnchorSideRight.Side = asrBottom
+            EditLabel.AnchorSideBottom.Control = edDocVoidingNo
+            EditLabel.Left = 8
+            EditLabel.Height = 15
+            EditLabel.Top = 6
+            EditLabel.Width = 184
+            EditLabel.Caption = 'Номер документа для отмены'
+            EditLabel.ParentColor = False
+            TabOrder = 0
+            Text = '1'
+          end
+        end
+        object tsDocCorrection: TTabSheet
+          Caption = '(VP) коррекция'
+          ClientHeight = 95
+          ClientWidth = 204
+          object edDocCorrectionCode: TLabeledEdit
+            Left = 7
+            Height = 23
+            Top = 28
+            Width = 185
+            EditLabel.AnchorSideLeft.Control = edDocCorrectionCode
+            EditLabel.AnchorSideRight.Control = edDocCorrectionCode
+            EditLabel.AnchorSideRight.Side = asrBottom
+            EditLabel.AnchorSideBottom.Control = edDocCorrectionCode
+            EditLabel.Left = 7
+            EditLabel.Height = 15
+            EditLabel.Top = 10
+            EditLabel.Width = 185
+            EditLabel.Caption = 'Код товара для отмены'
+            EditLabel.ParentColor = False
+            TabOrder = 0
+            Text = '0'
+          end
+        end
+      end
     end
   end
   object alMain: TActionList
-    Left = 41
-    Top = 133
+    left = 41
+    top = 133
     object actDiscover: TAction
       Caption = 'Поиск ФР'
       OnExecute = actDiscoverExecute
@@ -284,16 +562,31 @@ object FormMain: TFormMain
       Caption = 'Печать текстовой информации'
       OnExecute = actDocAddTestTextExecute
     end
+    object actDocPrint: TAction
+      Category = 'Docs'
+      Caption = 'Печатать чек'
+      OnExecute = actDocPrintExecute
+    end
+    object actDocAddTestNewBill: TAction
+      Category = 'Docs'
+      Caption = 'Новый счет'
+      OnExecute = actDocAddTestNewBillExecute
+    end
+    object actDocAddTestNewOrder: TAction
+      Category = 'Docs'
+      Caption = 'Новый заказ (в счет №1)'
+      OnExecute = actDocAddTestNewOrderExecute
+    end
   end
   object Timer100ms: TTimer
     Interval = 100
     OnTimer = Timer100msTimer
-    Left = 180
-    Top = 137
+    left = 180
+    top = 137
   end
   object pmMain: TPopupMenu
-    Left = 324
-    Top = 24
+    left = 324
+    top = 24
     object MenuItem1: TMenuItem
       Action = actReqDevInfo
     end
@@ -361,6 +654,12 @@ object FormMain: TFormMain
       end
       object MenuItem23: TMenuItem
         Action = actDocAddTestText
+      end
+      object MenuItem25: TMenuItem
+        Caption = '-'
+      end
+      object MenuItem24: TMenuItem
+        Action = actDocPrint
       end
     end
   end

@@ -17,6 +17,9 @@ type
     actDocAddTestSale: TAction;
     actDocAddTestIO: TAction;
     actDocAddTestText: TAction;
+    actDocPrint: TAction;
+    actDocAddTestNewBill: TAction;
+    actDocAddTestNewOrder: TAction;
     actReqDocs: TAction;
     actRep107: TAction;
     actRep102: TAction;
@@ -37,14 +40,27 @@ type
     btnDiscover: TButton;
     btnCreateDoc: TButton;
     btnAddLine: TButton;
+    btnDocPrint: TButton;
+    cbDocType: TComboBox;
+    edDocSaleGrp: TLabeledEdit;
+    edDocSaleDep: TLabeledEdit;
+    edDocSaleTax: TLabeledEdit;
+    edDocSaleQty: TLabeledEdit;
+    edDocSalePrice: TLabeledEdit;
+    edDocSaleCType: TLabeledEdit;
     gbLogin: TGroupBox;
     edAddr: TLabeledEdit;
     edLogin: TLabeledEdit;
     edPassw: TLabeledEdit;
     gbDevInfo: TGroupBox;
     gbDocs: TGroupBox;
+    edDocVoidingNo: TLabeledEdit;
+    edDocCorrectionCode: TLabeledEdit;
+    edDocSaleCode: TLabeledEdit;
+    edDocSaleName: TLabeledEdit;
     lboxAddrList: TListBox;
     lvDocs: TListView;
+    MemoHttpHeaders: TMemo;
     memoTestDocInfo: TMemo;
     memoDevInfo: TMemo;
     MenuItem1: TMenuItem;
@@ -63,6 +79,8 @@ type
     MenuItem21: TMenuItem;
     MenuItem22: TMenuItem;
     MenuItem23: TMenuItem;
+    MenuItem24: TMenuItem;
+    MenuItem25: TMenuItem;
     MenuItem3: TMenuItem;
     MenuItem4: TMenuItem;
     MenuItem5: TMenuItem;
@@ -70,22 +88,39 @@ type
     MenuItem7: TMenuItem;
     MenuItem8: TMenuItem;
     MenuItem9: TMenuItem;
+    pgcDocLine: TPageControl;
     pgcMain: TPageControl;
     pmMain: TPopupMenu;
+    tsDocCorrection: TTabSheet;
+    tsDocVoiding: TTabSheet;
+    tsDocBarcode: TTabSheet;
+    tsDocText: TTabSheet;
+    tsDocFisText: TTabSheet;
+    tsDocCashIO: TTabSheet;
+    tsDocPayment: TTabSheet;
+    tsDocDiscount: TTabSheet;
+    tsDocSale: TTabSheet;
     tsPrintDocs: TTabSheet;
     tsDocs: TTabSheet;
     tsMain: TTabSheet;
     Timer100ms: TTimer;
+    procedure actDocAddTestNewOrderExecute(Sender: TObject);
     procedure actDiscoverExecute(Sender: TObject);
     procedure actDocAddTestIOExecute(Sender: TObject);
+    procedure actDocAddTestNewBillExecute(Sender: TObject);
     procedure actDocAddTestSaleExecute(Sender: TObject);
     procedure actDocAddTestTextExecute(Sender: TObject);
+    procedure actDocPrintExecute(Sender: TObject);
     procedure actRepExecute(Sender: TObject);
     procedure actReqDevInfoExecute(Sender: TObject);
     procedure actReqDocsExecute(Sender: TObject);
     procedure actReqStatusExecute(Sender: TObject);
     procedure actSound2Execute(Sender: TObject);
     procedure actSoundExecute(Sender: TObject);
+    procedure btnAddLineClick(Sender: TObject);
+    procedure btnCreateDocClick(Sender: TObject);
+    procedure edAddrEditingDone(Sender: TObject);
+    procedure edLoginEditingDone(Sender: TObject);
     procedure FormCreate(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
     procedure gbDevInfoClick(Sender: TObject);
@@ -150,6 +185,17 @@ end;
 procedure TFormMain.FormCreate(Sender: TObject);
 begin
   FTitanDriver := TTitanDriver.Create(Self);
+  pgcMain.ActivePageIndex := 0;
+
+  cbDocType.Clear();
+  cbDocType.AddItem('(F) фискальный чек', nil);
+  cbDocType.AddItem('(R) чек возврата', nil);
+  cbDocType.AddItem('(IO) чек внесения-изъятия денег', nil);
+  cbDocType.AddItem('(VD) чек аннулирования', nil);
+  cbDocType.AddItem('(P) нефискальный чек', nil);
+  cbDocType.AddItem('(L) копия чека или ресторанного счета', nil);
+  cbDocType.AddItem('(RO) ресторанный заказ', nil);
+  cbDocType.AddItem('(VB) отмена ресторанного заказа', nil);
 end;
 
 procedure TFormMain.actDiscoverExecute(Sender: TObject);
@@ -158,14 +204,35 @@ begin
   TitanDriver.Discover();
 end;
 
+procedure TFormMain.actDocAddTestNewOrderExecute(Sender: TObject);
+begin
+  if Assigned(FTestDoc) then
+    FreeAndNil(FTestDoc);
+  FTestDoc := TFrDoc.Create(frdOrder);
+  FTestDoc.AddNewOrder(1);
+  FTestDoc.AddSale('Кофе', '3', 12);
+  UpdateTestDocInfo();
+end;
+
 procedure TFormMain.actDocAddTestIOExecute(Sender: TObject);
 begin
   if Assigned(FTestDoc) then
     FreeAndNil(FTestDoc);
   FTestDoc := TFrDoc.Create(frdCashIO);
-  FTestDoc.AddTextComment('Кассир: Светлана');
+  FTestDoc.AddFiscalComment('Кассир: Светлана');
   FTestDoc.AddCashIO(120);
   FTestDoc.AddCashIO(-140, 2);
+  UpdateTestDocInfo();
+end;
+
+procedure TFormMain.actDocAddTestNewBillExecute(Sender: TObject);
+begin
+  if Assigned(FTestDoc) then
+    FreeAndNil(FTestDoc);
+  FTestDoc := TFrDoc.Create(frdOrder);
+  FTestDoc.AddNewBill(1, 1);
+  FTestDoc.AddSale('Конфета', '1', 5);
+  FTestDoc.AddSale('Печенье', '2', 15, 0.5);
   UpdateTestDocInfo();
 end;
 
@@ -174,7 +241,7 @@ begin
   if Assigned(FTestDoc) then
     FreeAndNil(FTestDoc);
   FTestDoc := TFrDoc.Create(frdFiscal);
-  FTestDoc.AddTextComment('Кассир: Светлана');
+  FTestDoc.AddFiscalComment('Кассир: Светлана');
   FTestDoc.AddSale('Конфета', '1', 5);
   FTestDoc.AddSale('Печенье', '2', 15, 0.5);
   FTestDoc.AddDiscount(0, 5, True);
@@ -186,16 +253,22 @@ procedure TFormMain.actDocAddTestTextExecute(Sender: TObject);
 begin
   if Assigned(FTestDoc) then
     FreeAndNil(FTestDoc);
-  {FTestDoc := TFrDoc.Create(frd);
-  FTestDoc.AddPayment();
-  FTestDoc.AddTextComment('Line 1');
-  FTestDoc.AddTextComment('Line 2', TEXT_ATTR_WIDE);
-  FTestDoc.AddTextComment('Line 3');
-  FTestDoc.AddPayment();
-  FTestDoc.AddTextComment('Line 1');
-  FTestDoc.AddTextComment('Line 2', TEXT_ATTR_WIDE);
-  FTestDoc.AddTextComment('Line 3');   }
+  FTestDoc := TFrDoc.Create(frdNonFiscal);
+  //FTestDoc.AddFiscalComment('Line 1.1');
+  //FTestDoc.AddFiscalComment('Line 1.2', TEXT_ATTR_WIDE);
+  //FTestDoc.AddFiscalComment('Line 1.33');
+  FTestDoc.AddText('Line 2.1');
+  FTestDoc.AddText('Line 2.2', TEXT_ATTR_WIDE);
+  FTestDoc.AddText('Line 2.3', TEXT_ATTR_DOUBLE_HEIGHT);
   UpdateTestDocInfo();
+end;
+
+procedure TFormMain.actDocPrintExecute(Sender: TObject);
+begin
+  if Assigned(FTestDoc) then
+  begin
+    TitanDriver.SendFrDoc(FTestDoc);
+  end;
 end;
 
 procedure TFormMain.actRepExecute(Sender: TObject);
@@ -253,6 +326,51 @@ begin
   TitanDriver.Sound(1000, 1000);
 end;
 
+procedure TFormMain.btnAddLineClick(Sender: TObject);
+begin
+  if not Assigned(FTestDoc) then Exit;
+
+  if pgcDocLine.ActivePage = tsDocSale then
+  begin
+    FTestDoc.AddSale(edDocSaleName.Text,
+                   edDocSaleCode.Text,
+                   StrToCurrDef(edDocSalePrice.Text, 0),
+                   StrToCurrDef(edDocSaleQty.Text, 1),
+                   StrToIntDef(edDocSaleTax.Text, -1),
+                   StrToIntDef(edDocSaleCType.Text, 1),
+                   StrToIntDef(edDocSaleDep.Text, 1),
+                   StrToIntDef(edDocSaleGrp.Text, 1));
+  end;
+  UpdateTestDocInfo();
+end;
+
+procedure TFormMain.btnCreateDocClick(Sender: TObject);
+begin
+  if Assigned(FTestDoc) then
+    FreeAndNil(FTestDoc);
+  case cbDocType.ItemIndex of
+    0: FTestDoc := TFrDoc.Create(frdFiscal);
+    1: FTestDoc := TFrDoc.Create(frdRefund);
+    2: FTestDoc := TFrDoc.Create(frdCashIO);
+    3: FTestDoc := TFrDoc.Create(frdVoiding);
+    4: FTestDoc := TFrDoc.Create(frdNonFiscal);
+    5: FTestDoc := TFrDoc.Create(frdCopy);
+    6: FTestDoc := TFrDoc.Create(frdOrder);
+    7: FTestDoc := TFrDoc.Create(frdOrderCancel);
+  end;
+  UpdateTestDocInfo();
+end;
+
+procedure TFormMain.edAddrEditingDone(Sender: TObject);
+begin
+  TitanDriver.DevAddr := edAddr.Text;
+end;
+
+procedure TFormMain.edLoginEditingDone(Sender: TObject);
+begin
+  SetAccount();
+end;
+
 procedure TFormMain.FormDestroy(Sender: TObject);
 begin
   FreeAndNil(FTitanDriver);
@@ -266,7 +384,10 @@ end;
 procedure TFormMain.lboxAddrListClick(Sender: TObject);
 begin
   if lboxAddrList.GetSelectedText <> '' then
+  begin
     edAddr.Text := lboxAddrList.GetSelectedText;
+    TitanDriver.DevAddr := edAddr.Text;
+  end;
 end;
 
 procedure TFormMain.lvDocsData(Sender: TObject; Item: TListItem);
@@ -323,6 +444,13 @@ begin
     memoDevInfo.Lines.Add('СКНО: '+ IntToStr(TitanDriver.DevInfo.SknoState));
     memoDevInfo.Lines.Add('Err: '+ TitanDriver.DevInfo.Err);
     memoDevInfo.Lines.EndUpdate();
+
+  end;
+
+  if TitanDriver.IsResponseUpdated then
+  begin
+    TitanDriver.IsResponseUpdated := False;
+    MemoHttpHeaders.Text := TitanDriver.LastHttpResponse;
   end;
 end;
 
