@@ -47,23 +47,23 @@ asm
 
          MOV     ESI,BCD
          MOV     EDI,ESI
-         AND     EDI,$0000000F //число единиц
+         AND     EDI,$0000000F //С‡РёСЃР»Рѕ РµРґРёРЅРёС†
          MOV     ECX,8-1
-         //осталось еще семь шестнадцатеричных цифр (в DWORD их 8)
+         //РѕСЃС‚Р°Р»РѕСЃСЊ РµС‰Рµ СЃРµРјСЊ С€РµСЃС‚РЅР°РґС†Р°С‚РµСЂРёС‡РЅС‹С… С†РёС„СЂ (РІ DWORD РёС… 8)
          MOV     EBX,10
          @@1:
          SHR     ESI,4
          MOV     EAX,ESI
          AND     EAX,$0000000F
          MUL     EBX
-         //здесь последовательно умножаем на 10, на 100, на 1000 и т.д.
+         //Р·РґРµСЃСЊ РїРѕСЃР»РµРґРѕРІР°С‚РµР»СЊРЅРѕ СѓРјРЅРѕР¶Р°РµРј РЅР° 10, РЅР° 100, РЅР° 1000 Рё С‚.Рґ.
          ADD     EDI,EAX
          MOV     EAX,EBX
          SHL     EBX,3    //*8
          SHL     EAX,1    //*2
          ADD     EBX,EAX  //ebx = ebx * 10
          LOOP    @@1
-         MOV     EAX,EDI //результат в EAX
+         MOV     EAX,EDI //СЂРµР·СѓР»СЊС‚Р°С‚ РІ EAX
          POP     ESI
          POP     EDI
          POP     EDX
@@ -81,7 +81,7 @@ asm
          AND     AL,$F0
          SHR     EAX,3
          LEA     EAX,[EAX+4*EAX]
-         ADD     AL,BL   //в al результат
+         ADD     AL,BL   //РІ al СЂРµР·СѓР»СЊС‚Р°С‚
          POP     EBX
 end;
 
@@ -92,7 +92,7 @@ asm
          PUSH    EDI
          PUSH    ESI
 
-         //Сначала  обработаем старшее двойное слово
+         //РЎРЅР°С‡Р°Р»Р°  РѕР±СЂР°Р±РѕС‚Р°РµРј СЃС‚Р°СЂС€РµРµ РґРІРѕР№РЅРѕРµ СЃР»РѕРІРѕ
          MOV     ESI,DWord Ptr BCD[4]
          MOV     EDI,ESI
          AND     EDI,$0000000F
@@ -109,9 +109,9 @@ asm
          SHL     EAX,1    //*2
          ADD     EBX,EAX  //ebx = ebx * 10
          LOOP    @@1
-         PUSH    EDI    //Сохраним результат в стеке
+         PUSH    EDI    //РЎРѕС…СЂР°РЅРёРј СЂРµР·СѓР»СЊС‚Р°С‚ РІ СЃС‚РµРєРµ
 
-         //Теперь  обработаем младшее двойное слово
+         //РўРµРїРµСЂСЊ  РѕР±СЂР°Р±РѕС‚Р°РµРј РјР»Р°РґС€РµРµ РґРІРѕР№РЅРѕРµ СЃР»РѕРІРѕ
          MOV     ESI,DWord Ptr BCD
          MOV     EDI,ESI
          AND     EDI,$0000000F
@@ -129,15 +129,15 @@ asm
          ADD     EBX,EAX  //ebx = ebx * 10
          LOOP    @@2
 
-         //Извлечем из стека
-         //результат обработки старшего двойного слова,
+         //РР·РІР»РµС‡РµРј РёР· СЃС‚РµРєР°
+         //СЂРµР·СѓР»СЊС‚Р°С‚ РѕР±СЂР°Р±РѕС‚РєРё СЃС‚Р°СЂС€РµРіРѕ РґРІРѕР№РЅРѕРіРѕ СЃР»РѕРІР°,
          POP     EAX
          MOV     EBX,100000000
-         MUL     EBX      //умножим его на 100000000
-         //и сложим с результатом обработки младшего двойного слова
+         MUL     EBX      //СѓРјРЅРѕР¶РёРј РµРіРѕ РЅР° 100000000
+         //Рё СЃР»РѕР¶РёРј СЃ СЂРµР·СѓР»СЊС‚Р°С‚РѕРј РѕР±СЂР°Р±РѕС‚РєРё РјР»Р°РґС€РµРіРѕ РґРІРѕР№РЅРѕРіРѕ СЃР»РѕРІР°
          ADD     EAX,EDI
          ADC     EDX,0
-         //Результат получается в регистрах EDX:EAX
+         //Р РµР·СѓР»СЊС‚Р°С‚ РїРѕР»СѓС‡Р°РµС‚СЃСЏ РІ СЂРµРіРёСЃС‚СЂР°С… EDX:EAX
          POP     ESI
          POP     EDI
          POP     ECX
@@ -147,10 +147,10 @@ end;
 function GetBit(const bt, nBit: Byte): Boolean; stdcall; assembler;
 asm
          PUSH    EBX
-         //делаем в eax маску
+         //РґРµР»Р°РµРј РІ eax РјР°СЃРєСѓ
          XOR     EAX,EAX
          MOVZX   EBX,nBit
-         BTS     EAX,EBX //взводим в al бит nBit
+         BTS     EAX,EBX //РІР·РІРѕРґРёРј РІ al Р±РёС‚ nBit
          POP     EBX
          AND     AL,bt
 end;
@@ -158,18 +158,18 @@ end;
 function SetBit(const bt, nBit: Byte): Byte; stdcall; assembler;
 asm
          PUSH    EBX
-         //делаем в eax маску
+         //РґРµР»Р°РµРј РІ eax РјР°СЃРєСѓ
          XOR     EAX,EAX
          MOVZX   EBX,nBit
-         BTS     EAX,EBX //взводим в al бит nBit
+         BTS     EAX,EBX //РІР·РІРѕРґРёРј РІ al Р±РёС‚ nBit
          MOV     BL,bt
          OR      BL,AL
          MOV     AL,BL
          POP     EBX
 end;
 
-//меняет местами заданное количество байтов
-//если, напр., на входе массив (1,2,3,4,5), то на выходе будет (5,4,3,2,1)
+//РјРµРЅСЏРµС‚ РјРµСЃС‚Р°РјРё Р·Р°РґР°РЅРЅРѕРµ РєРѕР»РёС‡РµСЃС‚РІРѕ Р±Р°Р№С‚РѕРІ
+//РµСЃР»Рё, РЅР°РїСЂ., РЅР° РІС…РѕРґРµ РјР°СЃСЃРёРІ (1,2,3,4,5), С‚Рѕ РЅР° РІС‹С…РѕРґРµ Р±СѓРґРµС‚ (5,4,3,2,1)
 procedure SwapBytes(const pBt: Pointer; Count: Integer); stdcall; assembler;
 asm
          PUSH    EDI
@@ -363,8 +363,8 @@ begin
     Delete(st, Pos(' ', st), 1);
 end;
 
-//возвращает число из строки, содержащей несколько чисел, разделенных между собой какими-либо символами
-//числа будут только положительные, т.е. знак '-' принимается за разделитель
+//РІРѕР·РІСЂР°С‰Р°РµС‚ С‡РёСЃР»Рѕ РёР· СЃС‚СЂРѕРєРё, СЃРѕРґРµСЂР¶Р°С‰РµР№ РЅРµСЃРєРѕР»СЊРєРѕ С‡РёСЃРµР», СЂР°Р·РґРµР»РµРЅРЅС‹С… РјРµР¶РґСѓ СЃРѕР±РѕР№ РєР°РєРёРјРё-Р»РёР±Рѕ СЃРёРјРІРѕР»Р°РјРё
+//С‡РёСЃР»Р° Р±СѓРґСѓС‚ С‚РѕР»СЊРєРѕ РїРѕР»РѕР¶РёС‚РµР»СЊРЅС‹Рµ, С‚.Рµ. Р·РЅР°Рє '-' РїСЂРёРЅРёРјР°РµС‚СЃСЏ Р·Р° СЂР°Р·РґРµР»РёС‚РµР»СЊ
 function GetDigit(const DigNum: Integer; const stDig: string;
   const DecYear: Boolean = True): Integer;
 var
@@ -411,17 +411,17 @@ begin
   SetLength(Result, Length(stAnsi));
   for j := 1 to Length(stAnsi) do
     case byte(stAnsi[j]) of
-      $A8: {Ё} Result[j] := char($F0);
-      $B8: {ё} Result[j] := char($F1);
-      $AA: {Є} Result[j] := char($F2);
-      $BA: {є} Result[j] := char($F3);
-      $AF: {Ї} Result[j] := char($F4);
-      $BF: {ї} Result[j] := char($F5);
-      $A1: {Ў} Result[j] := char($F6);
-      $A2: {ў} Result[j] := char($F7);
-      $B9: {№} Result[j] := char($FC);
-      $C0..$EF: {А-п} Result[j] := char(byte(stAnsi[j]) - $40);
-      $F0..$FF: {р-я} Result[j] := char(byte(stAnsi[j]) - $10);
+      $A8: {РЃ} Result[j] := char($F0);
+      $B8: {С‘} Result[j] := char($F1);
+      $AA: {Р„} Result[j] := char($F2);
+      $BA: {С”} Result[j] := char($F3);
+      $AF: {Р‡} Result[j] := char($F4);
+      $BF: {С—} Result[j] := char($F5);
+      $A1: {РЋ} Result[j] := char($F6);
+      $A2: {Сћ} Result[j] := char($F7);
+      $B9: {в„–} Result[j] := char($FC);
+      $C0..$EF: {Рђ-Рї} Result[j] := char(byte(stAnsi[j]) - $40);
+      $F0..$FF: {СЂ-СЏ} Result[j] := char(byte(stAnsi[j]) - $10);
       else
         Result[j] := stAnsi[j];
     end;
@@ -434,17 +434,17 @@ begin
   SetLength(Result, Length(stAnsi));
   for j := 1 to Length(stAnsi) do
     case byte(stAnsi[j]) of
-      $F0: {Ё} Result[j] := char($A8);
-      $F1: {ё} Result[j] := char($B8);
-      $F2: {Є} Result[j] := char($AA);
-      $F3: {є} Result[j] := char($BA);
-      $F4: {Ї} Result[j] := char($AF);
-      $F5: {ї} Result[j] := char($BF);
-      $F6: {Ў} Result[j] := char($A1);
-      $F7: {ў} Result[j] := char($A2);
-      $FC: {№} Result[j] := char($B9);
-      $80..$AF: {А-п} Result[j] := char(byte(stAnsi[j]) + $40);
-      $E0..$EF: {р-я} Result[j] := char(byte(stAnsi[j]) + $10);
+      $F0: {РЃ} Result[j] := char($A8);
+      $F1: {С‘} Result[j] := char($B8);
+      $F2: {Р„} Result[j] := char($AA);
+      $F3: {С”} Result[j] := char($BA);
+      $F4: {Р‡} Result[j] := char($AF);
+      $F5: {С—} Result[j] := char($BF);
+      $F6: {РЋ} Result[j] := char($A1);
+      $F7: {Сћ} Result[j] := char($A2);
+      $FC: {в„–} Result[j] := char($B9);
+      $80..$AF: {Рђ-Рї} Result[j] := char(byte(stAnsi[j]) + $40);
+      $E0..$EF: {СЂ-СЏ} Result[j] := char(byte(stAnsi[j]) + $10);
       else
         Result[j] := stAnsi[j];
     end;

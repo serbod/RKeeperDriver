@@ -286,6 +286,7 @@ type
     FDevInfo: TFrDevInfo;
     FLastDocInfo: TFrDocInfo;
     FCurDocInfo: TFrDocInfo;
+    FBusy: Boolean;
 
     FFmRoomInfo: TFrRecListInfo;
     FJrnRoomInfo: TFrRecListInfo;
@@ -318,7 +319,7 @@ type
     { состояние электронного журнала }
     //procedure GetJrnRoom();
     { информация по последнем зарегистрированном документе }
-    //procedure LastReceipt();
+    procedure LastReceipt();
     { открытие денежного ящика }
     procedure OpenBox();
     { печать отчета с БЭП }
@@ -364,7 +365,15 @@ type
     property DevLogin: string read FDevLogin write FDevLogin;
     property DevPassw: string read FDevPassw write FDevPassw;
 
+    { Информация об устройстве, в ответ на GetDevState() и GetDevInfo() }
     property DevInfo: TFrDevInfo read FDevInfo;
+    { Данные последнего записаного чека, в ответ на LastReceipt() }
+    property LastDocInfo: TFrDocInfo read FLastDocInfo;
+    { Состояние текущего документа, в ответ на GetDocState() }
+    property CurDocInfo: TFrDocInfo read FCurDocInfo;
+    { Признак занятости устройства выполнением какой-либо задачи }
+    property Busy: Boolean read FBusy;
+
     property AddrList: TStringList read FFrAddrList;
     property DocList: TFrDocList read FDocList;
   end;
@@ -1057,6 +1066,11 @@ begin
   SendRequest(REQ_TYPE_FEEDPAPER, '/cgi/proc/feedpaper', '');
 end;
 
+procedure TTitanDriver.LastReceipt();
+begin
+  SendRequest(REQ_TYPE_LASTRECEIPT, '/cgi/proc/lastreceipt', '');
+end;
+
 procedure TTitanDriver.OpenBox();
 begin
   SendRequest(REQ_TYPE_OPENBOX, '/cgi/proc/openbox', '');
@@ -1282,27 +1296,35 @@ var
   TmpReq: TFrRequest;
   TmpData: IDataStorage;
 begin
-  TmpReq := TFrRequest.Create();
-  TmpReq.SendTimestamp := Now();
-  TmpReq.RequestType := AReqType;
-  TmpReq.RequestUrl := AUrl;
-  TmpReq.RequestJson := AJson;
-  TmpReq.ResultJson := '';
-  TmpReq.Method := 'GET';
+  FBusy := True;
+  try
+    TmpReq := TFrRequest.Create();
+    TmpReq.SendTimestamp := Now();
+    TmpReq.RequestType := AReqType;
+    TmpReq.RequestUrl := AUrl;
+    TmpReq.RequestJson := AJson;
+    TmpReq.ResultJson := '';
+    TmpReq.Method := 'GET';
 
-  SendAuth(TmpReq);
+    SendAuth(TmpReq);
 
-  if TmpReq.ResultJson <> '' then
-  begin
-    // разбор ответа
-    TmpData := JsonToData(TmpReq.ResultJson);
-    if not Assigned(TmpData) then Exit;
+    if TmpReq.ResultJson <> '' then
+    begin
+      // разбор ответа
+      TmpData := JsonToData(TmpReq.ResultJson);
+      if Assigned(TmpData) then
+      begin
+        ParseReqResult(TmpReq.RequestType, TmpData);
+        {case TmpReq.RequestType of
+          REQ_TYPE_DEV_INFO: ParseDevInfo(TmpData);
+          REQ_TYPE_DEV_STATE: ParseDevState(TmpData);
+        end; }
+      end;
+    end;
 
-    ParseReqResult(TmpReq.RequestType, TmpData);
-    {case TmpReq.RequestType of
-      REQ_TYPE_DEV_INFO: ParseDevInfo(TmpData);
-      REQ_TYPE_DEV_STATE: ParseDevState(TmpData);
-    end; }
+  finally
+    TmpReq.Free();
+    FBusy := False;
   end;
 end;
 
@@ -1533,24 +1555,31 @@ var
   TmpData: IDataStorage;
 begin
   if not Assigned(AFrDoc) then Exit;
+  FBusy := True;
+  try
+    TmpReq := TFrRequest.Create();
+    TmpReq.SendTimestamp := Now();
+    TmpReq.RequestType := REQ_TYPE_CHK;
+    TmpReq.RequestUrl := '/cgi/chk';
+    TmpReq.RequestJson := DataToJson(AFrDoc.Data);
+    TmpReq.ResultJson := '';
+    TmpReq.Method := 'POST';
 
-  TmpReq := TFrRequest.Create();
-  TmpReq.SendTimestamp := Now();
-  TmpReq.RequestType := REQ_TYPE_CHK;
-  TmpReq.RequestUrl := '/cgi/chk';
-  TmpReq.RequestJson := DataToJson(AFrDoc.Data);
-  TmpReq.ResultJson := '';
-  TmpReq.Method := 'POST';
+    SendAuth(TmpReq);
 
-  SendAuth(TmpReq);
+    if TmpReq.ResultJson <> '' then
+    begin
+      // разбор ответа
+      TmpData := JsonToData(TmpReq.ResultJson);
+      if not Assigned(TmpData) then
+      begin
+        ParseReqResult(TmpReq.RequestType, TmpData);
+      end;
+    end;
 
-  if TmpReq.ResultJson <> '' then
-  begin
-    // разбор ответа
-    TmpData := JsonToData(TmpReq.ResultJson);
-    if not Assigned(TmpData) then Exit;
-
-    ParseReqResult(TmpReq.RequestType, TmpData);
+  finally
+    TmpReq.Free();
+    FBusy := False;
   end;
 end;
 

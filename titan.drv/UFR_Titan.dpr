@@ -185,6 +185,7 @@ var
 begin
   FlushLogsQueue;
   for i := 0 to High(PrintDevices) do
+  begin
     if PrintDevices[i].DeviceNumber = DevNumber then
     begin
       SaveConfig(DevNumber);
@@ -208,6 +209,7 @@ begin
       end;
       Exit;
     end;
+  end;
 end;
 
 procedure UFRDone(DevNumber: Integer); stdcall;
@@ -313,7 +315,7 @@ Result:=-1;
         LastErrorMess := '';
 
         LoadConfig(DevNumber);
-        PrintDevices[MaxLen].TitanDriver.DevAddr := PrintDevices[DevInd].DevAddr;
+        PrintDevices[MaxLen].TitanDriver.DevAddr := PrintDevices[MaxLen].DevAddr;
         if LastReceiptNum > 0 then
           ShiftState := ssShiftOpened
         else
@@ -337,6 +339,7 @@ function _UFRGetStatus(Number: Integer; var Status: TUFRStatus;
   FieldsNeeded: DWord): Integer;
 var
   DevInd: Integer;
+  td: TTitanDriver;
 begin
   Result := 0;
   DevInd := GetDeviceIndex(Number);
@@ -344,20 +347,36 @@ begin
   if FlagPresented(FieldsNeeded, [fnBusy, fnShiftState, fnUnfiscalPrint,
     fnSerialNumber, fnLastShiftNum, fnCashRegValue]) then
   begin
-    Status.Busy := False;
+    td := PrintDevices[DevInd].TitanDriver;
+    td.GetDevState();
+    td.GetDocState();
+    td.LastReceipt();
+    if td.IsStateUpdated then
+    begin
+      td.IsStateUpdated := False;
+      Status.Busy := td.Busy;
+      Status.SerialNum := td.DevInfo.Model + ' ' + td.DevInfo.SerialNum;
+      Status.LastShiftNum := td.DevInfo.CurrZ;
+    end;
+
+    //Status.Busy := False;
     Status.ShiftState := PrintDevices[DevInd].ShiftState;
     Status.CanNotPrintUnfiscal := False;
-    Status.LastShiftNum := PrintDevices[DevInd].LastShiftNum;
+    //Status.LastShiftNum := PrintDevices[DevInd].LastShiftNum;
+    // Сумма в кассе, в копейках
     Status.CashRegValue := PrintDevices[DevInd].CashRegValue;
-    //итог наличных(сумма в кассе)
-    Status.SaledValue := PrintDevices[DevInd].SaledValue;
     //необнуляемый итог
-    Status.SerialNum := '12345';
+    Status.SaledValue := PrintDevices[DevInd].SaledValue;
   end;
-  if FieldsNeeded and fnLastDocNum <> 0 then
+  if (FieldsNeeded and fnLastDocNum) <> 0 then
   begin
-    Status.LastDocNum := PrintDevices[DevInd].LastDocNum;
-    Status.LastReceiptNum := PrintDevices[DevInd].LastReceiptNum;
+    //Status.LastDocNum := PrintDevices[DevInd].LastDocNum;
+    //Status.LastReceiptNum := PrintDevices[DevInd].LastReceiptNum;
+
+    // Последний номер документа (в том числе инкассации и т.п.)
+    Status.LastDocNum := td.DevInfo.ChkId;
+    // Последний номер чека
+    Status.LastReceiptNum := td.LastDocInfo.DocNum;
   end;
   if Result = 0 then
     AddLogEvent(DevInd, letOther, 'The device status has successfully obtained');
@@ -386,11 +405,17 @@ const
 var
   XMLDocument: TXMLDocument;
   XMLNode: TDOMNode;
-  st: string;
+  sBarCodeType, st: string;
   DevInd: Integer;
+  td: TTitanDriver;
+
+  tmpDoc: TFrDoc;
 begin
   DevInd := GetDeviceIndex(Number);
   AddLogEvent(DevInd, letOther, 'Start the non-fiscal printing');
+
+  td := PrintDevices[DevInd].TitanDriver;
+  td.GetDevState();
 
   //Result:=0;
 
@@ -404,57 +429,78 @@ begin
   end;
   WriteLog('UFRUnfiscalPrint -----------------------------------------------------------------'#13#10 + XMLBuffer);
 
-  XMLNode := GetFirstNode(XMLDocument);
+  tmpDoc := TFrDoc.Create(frdNonFiscal);
 
-  XMLNode := XMLNode.firstChild;
+  try
+    XMLNode := GetFirstNode(XMLDocument);
 
-  while XMLNode <> nil do
-  begin
-    if NodeNameIs(XMLNode, 'TextBlock') or NodeNameIs(XMLNode, 'TextLine') or
-      NodeNameIs(XMLNode, 'TextPart') then
+    XMLNode := XMLNode.firstChild;
+
+
+    while XMLNode <> nil do
     begin
-      if XMLNode.NodeName[5] = 'B' then
-        st := string(XMLNode.FirstChild.NodeValue) //печатаемые строки текста
+      if NodeNameIs(XMLNode, 'TextBlock')
+      or NodeNameIs(XMLNode, 'TextLine')
+      or NodeNameIs(XMLNode, 'TextPart') then
+      begin
+        if XMLNode.NodeName[5] = 'B' then
+          st := string(XMLNode.FirstChild.NodeValue) //печатаемые строки текста
+        else
+          st := FindAttrByName(XMLNode, 'Text');
+
+        tmpDoc.AddText(st);
+      end
       else
-        st := FindAttrByName(XMLNode, 'Text');
-    end
-    else
-    if NodeNameIs(XMLNode, 'BarCode') then   //печать штрих-кода
+      if NodeNameIs(XMLNode, 'BarCode') then   //печать штрих-кода
+      begin
+        sBarCodeType := FindAttrByName(XMLNode, 'Type');
+        st := FindAttrByName(XMLNode, 'Value');
+        if (sBarCodeType = 'EAN13')
+        or (sBarCodeType = 'EAN-13') then
+        begin
+          tmpDoc.AddBarcode(st);
+        end;
+      end
+      else
+      if NodeNameIs(XMLNode, 'Pass') then
+      begin
+      end
+      else
+      if NodeNameIs(XMLNode, 'Wait') then
+        Sleep(GetIntValByName(XMLNode, 'MSecs', 1));
+      XMLNode := XMLNode.nextSibling;
+    end;
+
+    XMLNode := GetFirstNode(XMLDocument);
+    if GetIntValByName(XMLNode, 'CutAfter', 0) = 1 then
     begin
-    end
-    else
-    if NodeNameIs(XMLNode, 'Pass') then
+    end;
+
+    td.SendFrDoc(tmpDoc);
+
+    stCustomError := td.DevInfo.Err;
+
+    if stCustomError = '' then
     begin
+      Result := 0;
+
+      AddLogEvent(DevInd, letOther,
+        'The non-fiscal printing has been successfully completed');
     end
     else
-    if NodeNameIs(XMLNode, 'Wait') then
-      Sleep(GetIntValByName(XMLNode, 'MSecs', 1));
-    XMLNode := XMLNode.nextSibling;
+    begin
+      Result := CustomErrorCode;
+
+      AddLogEvent(DevInd, letError, stCustomError);
+    end;
+
+    SaveError(DevInd, Result);
+
+  finally
+    tmpDoc.Free();
+    if Assigned(XMLDocument) then
+      FreeAndNil(XMLDocument);
   end;
-
-  XMLNode := GetFirstNode(XMLDocument);
-  if GetIntValByName(XMLNode, 'CutAfter', 0) = 1 then
-  begin
-  end;
-
-  if stCustomError = '' then
-  begin
-    Result := 0;
-
-    AddLogEvent(DevInd, letOther,
-      'The non-fiscal printing has been successfully completed');
-  end
-  else
-  begin
-    Result := CustomErrorCode;
-
-    AddLogEvent(DevInd, letError, stCustomError);
-  end;
-
-  SaveError(DevInd, Result);
-
-  if Assigned(XMLDocument) then
-    FreeAndNil(XMLDocument);
 
   WriteLog('<Printing is complete>'#13#10);
 end;
