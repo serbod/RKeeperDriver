@@ -87,6 +87,8 @@ type
 
   TFrRequest = class(TObject)
     Session: TFrSession;
+    { Признак сервисного запроса, от имени service }
+    IsService: Boolean;
     { момент времени отправки запроса }
     SendTimestamp: TDateTime;
     { GET, POST }
@@ -164,8 +166,9 @@ type
     procedure AddDiscount(ASum, APrc: Currency; IsAll: Boolean = False; ADn: Integer = 0);
     { строка оплаты
       ASum: сумма оплаты, если 0 то оплата всего чека
-      APayNo: номер строки в таблице Pay, соответствующий типу оплаты. Если 0 то наличными }
-    procedure AddPayment(ASum: Currency = 0; APayNo: Integer = 0);
+      APayNo: номер строки в таблице Pay, соответствующий типу оплаты. Если 0 то наличными
+      AName: название типа оплаты, для прочитанных из СКНО документов  }
+    procedure AddPayment(ASum: Currency = 0; APayNo: Integer = 0; AName: string = '');
     { строка служебного внесения/изъятия средств
       ASum: с + внесение, с - изъятие
       APayNo: номер строки в таблице Pay, соответствующий типу оплаты. Если 0 то наличными }
@@ -313,7 +316,7 @@ type
     { прогон бумаги }
     procedure FeedPaper();
     { регистрация }
-    //procedure Fiscalization();
+    procedure Fiscalization();
     { состояние фискальной памяти }
     //procedure GetFMRoom();
     { состояние электронного журнала }
@@ -328,13 +331,13 @@ type
     { печать отчета }
     procedure PrintReport(AReportType: Integer);
     { перерегистрация }
-    //procedure PutHdrFM();
+    procedure PutHdrFM();
     {  запись налоговых ставок в БЭП }
-    //procedure PutTaxFM();
+    procedure PutTaxFM();
     { установка времени }
     procedure SetClock(ADateTime: TDateTime);
     { состояние модуля СКНО }
-    //procedure SknoState();
+    procedure SknoState();
     { звуковой сигнал
       ALen - длительность (мс)
       AFreq - частота (Гц) }
@@ -351,6 +354,9 @@ type
       ADocID - ID документа, с которого нужно читать журнал до конца, если 0 то все
       ADocNum - номер отдельного документа для чтения, если 0 то не нужен }
     procedure GetDocs(ADocID: Integer = 0; ADocNum: Integer = 0);
+    { регистрация текущего IP отправителя в списке "белых", для которых не требуется авторизация
+      AIsClear - отменить имеющуюся регистрацию }
+    procedure RegisterWhiteIP(AIsClear: Boolean = False);
 
     { Запустить обнаружение ФР в сети }
     procedure Discover();
@@ -380,12 +386,20 @@ type
 
   function DataToJson(AData: IDataStorage): string;
 
+  { Заполнить текст расшифровкой состояния документа }
+  function FillDocStateText(ADocState: Integer; sl: TStrings): Boolean;
+
+  { Получить расшифровку кода ошибки }
+  function GetErrorCodeDescription(AErrCode: string): string;
+
 implementation
 
 uses
   JsonStorage, md5, DateUtils, synautil;
 
 const
+  SERVICE_LOGIN = 'service';
+  SERVICE_PASSW = '751426';
 
   { === коды ошибок кассы === }
   ERR_PRICE_NOT_SET    = $01; // Цена не указана
@@ -525,6 +539,7 @@ const
   REQ_TYPE_SKNOSTATE     = $2C; // /cgi/proc/sknostate
   REQ_TYPE_SOUND         = $2D; // /cgi/proc/sound
   REQ_TYPE_PROC_STATE    = $2E; // /cgi/proc/state
+  REQ_TYPE_REGISTER      = $2F; // /cgi/proc/register
   // отчеты
   REQ_TYPE_REP_PAY     = $31; // /cgi/rep/pay
   //REQ_TYPE_            = $00; // /cgi/
@@ -591,6 +606,8 @@ begin
     TryEncodeDateTime(YY, MM, DD, HH, NN, SS, 0, Result);
     Exit;
   end;
+  // 1550662644
+  Result := UnixToDateTime(StrToIntDef(AIsoDate, 0));
 end;
 
 function DateTimeToIso(ADateTime: TDateTime): string;
@@ -623,6 +640,153 @@ begin
   //AHttpSend.Headers.Add('Accept-Language: en-us,en;q=0.5');
   //AHttpSend.Headers.Add('Accept-Encoding: gzip, deflate');
   //AHttpSend.Headers.Add('Accept-Charset: ISO-8859-1,utf-8;q=0.7,*;q=0.7');
+end;
+
+function FillDocStateText(ADocState: Integer; sl: TStrings): Boolean;
+begin
+  Result := False;
+  if not Assigned(sl) then Exit;
+
+  { Битовая маска состояния документа }
+  if (ADocState and DOC_STATE_OPEN_FIS) <> 0 then
+    sl.Append('открыт фискальный чек');
+  if (ADocState and DOC_STATE_OPEN_NONFIS) <> 0 then
+    sl.Append('открыт не фискальный чек');
+  if (ADocState and DOC_STATE_NEED_PAYMENT) <> 0 then
+    sl.Append('для закрытия чека требуется оплата');
+  if (ADocState and DOC_STATE_PRN_TOTALS) <> 0 then
+    sl.Append('напечатаны итоги по чеку');
+  if (ADocState and DOC_STATE_PRN_HEADER) <> 0 then
+    sl.Append('напечатан заголовок чека');
+  if (ADocState and DOC_STATE_HAS_GOODS) <> 0 then
+    sl.Append('в чеке были продажи товара');
+  if (ADocState and DOC_STATE_HAS_MONEY_IO) <> 0 then
+    sl.Append('в чеке были вносы/выносы');
+  if (ADocState and DOC_STATE_PAY_STARTED) <> 0 then
+    sl.Append('начата расплата по чеку');
+  if (ADocState and DOC_STATE_PRN_TAPE) <> 0 then
+    sl.Append('печать контрольной ленты');
+  if (ADocState and DOC_STATE_PRN_REPORT) <> 0 then
+    sl.Append('печать служебного отчета');
+  if (ADocState and DOC_STATE_CANCEL) <> 0 then
+    sl.Append('отмена документа');
+  if (ADocState and DOC_STATE_HAS_OPER) <> 0 then
+    sl.Append('в чеке есть операции');
+  if (ADocState and DOC_STATE_REFUND_START) <> 0 then
+    sl.Append('начат чек возврата');
+  if (ADocState and DOC_STATE_SAVED) <> 0 then
+    sl.Append('запись занесена в ленту');
+end;
+
+function GetErrorCodeDescription(AErrCode: string): string;
+var
+  nCode: Byte;
+begin
+  nCode := Byte(StrToIntDef(AErrCode, 0));
+  case nCode of
+    ERR_PRICE_NOT_SET:   Result := 'Цена не указана';
+    ERR_QTY_NOT_SET:     Result := 'Количество не указано';
+    ERR_DEP_NOT_SET:     Result := 'Отдел не указан';
+    ERR_GRP_NOT_SET:     Result := 'Группа не указана';
+    ERR_NO_PAPER:        Result := 'Нет бумаги';
+    ERR_USER_LOGGED:     Result := 'Пользователь уже зарегистрирован';
+    ERR_BAD_PASSWD:      Result := 'Неверный пароль';
+    ERR_BAD_TABL_NO:     Result := 'Неверный номер таблицы';
+    ERR_TABL_NO_ACCESS:  Result := 'Доступ к таблице запрещен';
+    ERR_NO_DEFAULT:      Result := 'Умолчание не найдено';
+    ERR_BAD_INDEX:       Result := 'Неверный индекс';
+    ERR_BAD_FIELD:       Result := 'Неверное поле';
+    ERR_TABL_FULL:       Result := 'Таблица переполнена';
+    ERR_BAD_BIN_LEN:     Result := 'Неверная длина двоичных данных';
+    ERR_RO_FIELD:        Result := 'Попытка модификации поля только для чтения';
+    ERR_BAD_FIELD_VAL:   Result := 'Неверное значение поля';
+    ERR_PROD_EXIST:      Result := 'Товар уже существует';
+    ERR_PROD_SALE_EXIST: Result := 'По товару были продажи';
+    ERR_REQ_NO_ACCESS:   Result := 'Запрос запрещен';
+    ERR_BAD_TAB:         Result := 'Неверная закладка';
+    ERR_KEY_NOT_FOUND:   Result := 'Ключ не найден';
+    ERR_PROC_EXECUTED:   Result := 'Процедура уже исполняется';
+    ERR_QTY_NEGATIVE:    Result := 'Количество товара отрицательно';
+    ERR_TAPE_NO_PAPER:   Result := 'Нет бумаги для контрольной ленты';
+    ERR_NO_PAPER2:       Result := 'Нет бумаги';
+    ERR_NO_ODD_MONEY:    Result := 'Выдача сдачи запрещена';
+    ERR_HAS_STATES:      Result := 'Есть 3 или более непереданных отчета';
+    ERR_TAPE_NOT_EMPTY:  Result := 'Лента не пуста';
+    ERR_NO_KAFE_MODE:    Result := 'Ресторанный режим не активен';
+    ERR_NO_KAFE_BILL:    Result := 'Ресторанный счет не открыт';
+    ERR_ORDERS_FULL:     Result := 'Переполнение количества заказов';
+    ERR_BILL_OPENED:     Result := 'Ресторанный чек открыт';
+    ERR_BAD_BILL_NUM:    Result := 'Неверный номер счета';
+    ERR_PRACTICE_MODE:   Result := 'Режим тренировки';
+    ERR_BAD_DATE:        Result := 'Текущая дата неверна';
+    ERR_CANT_SET_DATE:   Result := 'Запрещено изменение времени';
+    ERR_SERVICE_TIMER:   Result := 'Истек сервисный таймер';
+    ERR_TERMINAL_ERR:    Result := 'Ошибка работы с терминалом НСМЕП';
+    ERR_BAD_TAX_NUM:     Result := 'Неверный номер налога';
+    ERR_BAD_PROC_PARAM:  Result := 'Неверный параметр у процедуры';
+    ERR_NO_FISCAL_MODE:  Result := 'Режим фискального принтера не активен';
+    ERR_PROD_TAX_CHANGED: Result := 'Изменялось название товара или его налог';
+    ERR_FM_BUSY:         Result := 'СКНО занято';
+    ERR_FM_NO_LINK:      Result := 'ошибка обмена с СКНО (нет связи)';
+    ERR_WORK_NOT_OPEN:   Result := 'смена не открыта';
+    ERR_FM_FULL:         Result := 'СКНО переполнено';
+    ERR_FM_BAD_STATE:    Result := 'Неверный статус СКНО';
+    ERR_FM_BAD_IDENT:    Result := 'Ошибка идентификации СКНО';
+    ERR_CANT_SALE:       Result := 'запрещена операция продажи';
+    ERR_REFUND_STARTED:  Result := 'Начата операция возврата';
+    ERR_BAD_PROD_TYPE:   Result := 'неверный тип кода товара';
+    ERR_Z1_FAIL:         Result := 'Не выведен отчет Z1';
+    ERR_INCASS_FAIL:     Result := 'Не сделана инкассация денег';
+    ERR_BOX_NOT_CLOSED:  Result := 'Сейф не закрыт';
+    ERR_TAPE_PRN_FAIL:   Result := 'Печать ленты прервана';
+    ERR_WORK_END:        Result := 'Достигнут конец текущей смены, или изменилась дата';
+    ERR_NO_DEF_DISCONT_PRC: Result := 'Не указано значение процентной скидки по умолчанию';
+    ERR_NO_DEF_DISCONT_VAL: Result := 'Не указано значение скидки по умолчанию';
+    ERR_WORK_REP_FAIL:   Result := 'Дневной отчет не выведен';
+    ERR_WORK_REP_EMPTY:  Result := 'Дневной отчет уже выведен (и пуст)';
+    ERR_NEED_REFUND_DISCONT: Result := 'Нельзя отменить товар на который сделана скидка без ее предварительной отмены';
+    ERR_NO_PROD_SALE:    Result := 'Товар не продавался в этом чеке';
+    ERR_NO_REFUND:       Result := 'Нечего отменять';
+    ERR_SUM_NEGATIVE:    Result := 'Отрицательная сумма продажи товара';
+    ERR_BAD_PRC:         Result := 'Неверный процент';
+    ERR_NO_SALE:         Result := 'Нет ни одной продажи';
+    ERR_CANT_DISCOUNT:   Result := 'Скидки запрещены';
+    ERR_BAD_SUM:         Result := 'Неверная сумма платежа';
+    ERR_NO_NEED_CUSTOMER: Result := 'Тип оплаты не предполагает введения кода клиента';
+    ERR_BAD_SUM2:        Result := 'Неверная сумма платежа';
+    ERR_PAY_BUSY:        Result := 'Идет оплата чека';
+    ERR_OUT_OF_PROD:     Result := 'Товар закончился';
+    ERR_CANT_SET_GRP:    Result := 'Номер группы не может меняться';
+    ERR_BAD_GRP:         Result := 'Неверная группа';
+    ERR_CANT_SET_DEP:    Result := 'Номер отдела не может меняться';
+    ERR_BAD_DEP:         Result := 'Неверный отдел';
+    ERR_ZERO_SUM:        Result := 'Нулевое произведение количества на цену';
+    ERR_SUM_OVERFLOW:    Result := 'Переполнение внутренних сумм';
+    ERR_CANT_FRACT_QTY:  Result := 'Дробное количество запрещено';
+    ERR_BAD_QTY:         Result := 'Неверное количество';
+    ERR_CANT_SET_PRICE:  Result := 'Цена не может быть изменена';
+    ERR_BAD_PRICE:       Result := 'Неверная цена';
+    ERR_BAD_PROD:        Result := 'Товар не существует';
+    ERR_CASH_IO_START:   Result := 'Начат чек внесения-изъятия денег';
+    ERR_HAS_SALES:       Result := 'Чек содержит продажи';
+    ERR_BAD_PAY_TYPE:    Result := 'Не существующий или запрещенный тип оплаты';
+    ERR_FIELD_FULL:      Result := 'Поле в строке переполнено';
+    ERR_NEGATIVE_WORK_REP: Result := 'Отрицательная сумма по дневному отчету';
+    ERR_NEGATIVE_SUM:    Result := 'Отрицательная сумма по чеку';
+    ERR_DOC_FULL:        Result := 'Чек переполнен';
+    ERR_WORK_FULL:       Result := 'Дневной отчет переполнен';
+    ERR_BAD_COPY_NUM:    Result := 'Чек для копии не найден';
+    ERR_PAY_FAIL:        Result := 'Оплата чека не завершена';
+    ERR_BAD_PERS:        Result := 'Кассир не зарегистрирован';
+    ERR_CANT_PERS:       Result := 'У кассира нет прав на эту операцию';
+    ERR_NF_DOC_NOT_OPEN: Result := 'Нефискальный чек не открыт';
+    ERR_DOC_NOT_OPEN:    Result := 'Чек не открыт';
+    ERR_NF_DOC_OPEN:     Result := 'Нефискальный чек уже открыт';
+    ERR_DOC_OPEN:        Result := 'Чек уже открыт';
+    ERR_TAPE_FULL:       Result := 'Переполнение ленты';
+  else
+    Result := AErrCode + ' (неизвестно)'
+  end;
 end;
 
 { TFrDocList }
@@ -699,7 +863,7 @@ begin
   end;
 end;
 
-procedure TFrDoc.AddPayment(ASum: Currency; APayNo: Integer);
+procedure TFrDoc.AddPayment(ASum: Currency; APayNo: Integer; AName: string);
 var
   dsLine: TDataStorage;
 begin
@@ -712,6 +876,9 @@ begin
 
     if APayNo <> 0 then
       dsLine.SetValue(APayNo, 'no');
+
+    if AName <> '' then
+      dsLine.SetValue(AName, 'name');
 
     AddNewLine(dsLine, 'P');
   end;
@@ -959,6 +1126,8 @@ begin
         begin
           s := 'Оплата: sum=' + TmpItem.GetString('sum');
           s := s + '  no=' + TmpItem.GetString('no');
+          if TmpItem.HaveName('name') then
+            s := s + '  name=' + TmpItem.GetString('name');
         end
         else if sType = 'IO' then
         begin
@@ -1048,8 +1217,8 @@ begin
   FFrAddrList := TStringList.Create();
   FDocList := TFrDocList.Create();
   FDevAddr := '169.254.148.191';
-  FDevLogin := 'service';
-  FDevPassw := '751426';
+  FDevLogin := SERVICE_LOGIN;
+  FDevPassw := SERVICE_PASSW;
 end;
 
 procedure TTitanDriver.BeforeDestruction();
@@ -1064,6 +1233,11 @@ end;
 procedure TTitanDriver.FeedPaper();
 begin
   SendRequest(REQ_TYPE_FEEDPAPER, '/cgi/proc/feedpaper', '');
+end;
+
+procedure TTitanDriver.Fiscalization();
+begin
+  SendRequest(REQ_TYPE_FISCALIZATION, '/cgi/proc/fiscalization', '');
 end;
 
 procedure TTitanDriver.LastReceipt();
@@ -1093,9 +1267,24 @@ begin
   SendRequest(REQ_TYPE_PRINTREPORT, '/cgi/proc/printreport?' + IntToStr(AReportType), '');
 end;
 
+procedure TTitanDriver.PutHdrFM();
+begin
+  SendRequest(REQ_TYPE_PUTHDRFM, '/cgi/proc/puthdrfm', '');
+end;
+
+procedure TTitanDriver.PutTaxFM();
+begin
+  SendRequest(REQ_TYPE_PUTTAXFM, '/cgi/proc/puttaxfm', '');
+end;
+
 procedure TTitanDriver.SetClock(ADateTime: TDateTime);
 begin
   SendRequest(REQ_TYPE_SETCLOCK, '/cgi/proc/setclock?' + DateTimeToIso(ADateTime), '');
+end;
+
+procedure TTitanDriver.SknoState();
+begin
+  SendRequest(REQ_TYPE_SKNOSTATE, '/cgi/proc/sknostate', '');
 end;
 
 procedure TTitanDriver.Sound(ALen, AFreq: Integer);
@@ -1139,6 +1328,20 @@ begin
   SendRequest(REQ_TYPE_CHK, s, '');
 end;
 
+procedure TTitanDriver.RegisterWhiteIP(AIsClear: Boolean);
+begin
+  { Если таблица whiteIP не заполнена до конца, существует упрощенный способ добавить туда
+  строку - вызов процедуры /cgi/proc/register. Вызов процедуры приводит к сохранению в
+  свободной строке процедуры IP адреса, с которого она была вызвана, и оператора, от имени
+  которого она была вызвана. Если IP адрес уже присутствует в таблице, номер оператора в строке с
+  ним меняется на номер оператора, который вызвал процедуру. Процедура с параметром
+  /cgi/proc/register?clear освобождает строку, если IP адрес был записан ранее. }
+  if not AIsClear then
+    SendRequest(REQ_TYPE_REGISTER, '/cgi/proc/register', '')
+  else
+    SendRequest(REQ_TYPE_REGISTER, '/cgi/proc/register?clear', '');
+end;
+
 procedure TTitanDriver.SendAuth(ARequest: TFrRequest);
 var
   slHeaders, slCookies: TStringList;
@@ -1167,8 +1370,16 @@ begin
   ParseURL(sUrl, sProt, sUsr0, sPas0, sHost, sPort, sPath, sParams);
 
   sUri := sPath;
-  sName := DevLogin;
-  sPwd := DevPassw;
+  if ARequest.IsService then
+  begin
+    sName := SERVICE_LOGIN;
+    sPwd := SERVICE_PASSW;
+  end
+  else
+  begin
+    sName := DevLogin;
+    sPwd := DevPassw;
+  end;
 
   slHeaders := TStringList.Create();
   slCookies := TStringList.Create();
@@ -1306,6 +1517,19 @@ begin
     TmpReq.ResultJson := '';
     TmpReq.Method := 'GET';
 
+    case AReqType of
+      REQ_TYPE_FISCALIZATION,
+      REQ_TYPE_PUTHDRFM,
+      REQ_TYPE_PUTTAXFM,
+      REQ_TYPE_SETCLOCK,
+      REQ_TYPE_TBL_OPER,
+      REQ_TYPE_TBL_FSK,
+      REQ_TYPE_TBL_TAX:
+      begin
+        TmpReq.IsService := True;
+      end;
+    end;
+
     SendAuth(TmpReq);
 
     if TmpReq.ResultJson <> '' then
@@ -1357,62 +1581,97 @@ begin
       FDevInfo.IsFiscalization := AData.GetBool('Fiscalization');
       FDevInfo.IsFskMode := AData.GetBool('FskMode');
       FDevInfo.SknoState := AData.GetInteger('SKNOState');
-      if AData.HaveName('err') then
-      begin
-        // "err":[{"e":"No fiscal printer mode"}]
-        tmpData := AData.GetObject('err');
-        if Assigned(tmpData) and (tmpData.GetStorageType() = stList) then
-        begin
-          for i := 0 to tmpData.GetCount()-1 do
-          begin
-            tmpItem := tmpData.GetObject(i);
-            if FDevInfo.Err <> '' then
-              FDevInfo.Err := FDevInfo.Err + '; ';
-            FDevInfo.Err := FDevInfo.Err + tmpItem.GetString('e');
-          end;
-        end;
-      end;
     end;
 
     REQ_TYPE_GETFMROOM:
     begin
-      FFmRoomInfo.TotalCount := AData.GetObject(0).GetInteger();
-      FFmRoomInfo.FreeCount := AData.GetObject(1).GetInteger();
+      if AData.GetCount() >= 2 then
+      begin
+        FFmRoomInfo.TotalCount := AData.GetObject(0).GetInteger();
+        FFmRoomInfo.FreeCount := AData.GetObject(1).GetInteger();
+      end;
     end;
 
     REQ_TYPE_GETJRNROOM:
     begin
-      FJrnRoomInfo.TotalCount := AData.GetObject(0).GetInteger();
-      FJrnRoomInfo.FreeCount := AData.GetObject(1).GetInteger();
+      if AData.GetCount() >= 2 then
+      begin
+        FJrnRoomInfo.TotalCount := AData.GetObject(0).GetInteger();
+        FJrnRoomInfo.FreeCount := AData.GetObject(1).GetInteger();
+      end;
     end;
 
     REQ_TYPE_LASTRECEIPT:
     begin
-      FLastDocInfo.TotalSum := StrToCurr(AData.GetObject(0).GetValue());
-      FLastDocInfo.DocNum := AData.GetObject(1).GetInteger();
-      FLastDocInfo.DateTime := IsoDateToDateTime(AData.GetObject(2).GetValue());
-      FLastDocInfo.OpNum := AData.GetObject(3).GetInteger();
-      FLastDocInfo.UID := AData.GetObject(4).GetValue();
+      if AData.GetCount() >= 5 then
+      begin
+        FLastDocInfo.TotalSum := StrToCurr(AData.GetObject(0).GetValue()); // "Total":2780
+        FLastDocInfo.DocNum := AData.GetObject(1).GetInteger();            // "NRcpt":216
+        FLastDocInfo.DateTime := IsoDateToDateTime(AData.GetObject(2).GetValue()); // "GMTTime":1550662644
+        FLastDocInfo.OpNum := AData.GetObject(3).GetInteger();  // "NOper":1
+        FLastDocInfo.UID := AData.GetObject(4).GetValue(); // "UI":"x9E4C52D8ADF435A60000877F"
+      end;
     end;
 
     REQ_TYPE_PROC_STATE:
     begin
-      FCurDocInfo.DocState := AData.GetObject(0).GetInteger();
-      FCurDocInfo.OpNum := AData.GetObject(1).GetInteger();
-      FCurDocInfo.DocNum := AData.GetObject(2).GetInteger();
-      FCurDocInfo.RepNum := AData.GetObject(3).GetInteger();
+      if AData.GetCount() >= 4 then
+      begin
+        FCurDocInfo.DocState := AData.GetObject(0).GetInteger();
+        FCurDocInfo.OpNum := AData.GetObject(1).GetInteger();
+        FCurDocInfo.DocNum := AData.GetObject(2).GetInteger();
+        FCurDocInfo.RepNum := AData.GetObject(3).GetInteger();
+      end;
     end;
 
     REQ_TYPE_SKNOSTATE:
     begin
-      FDevInfo.SknoState := AData.GetInteger();
+      FDevInfo.SknoState := AData.GetInteger('SKNO');
     end;
 
     REQ_TYPE_CHK:
     begin
-      ParseChk(AData);
+      if AData.GetStorageType() = stDictionary then
+      begin
+        ParseChk(AData);
+      end
+      else if AData.GetStorageType() = stList then
+      begin
+        for i := 0 to AData.GetCount()-1 do
+        begin
+          tmpItem := AData.GetObject(i);
+          ParseChk(tmpItem);
+        end;
+      end;
     end;
   end;
+
+  if AData.HaveName('err') then
+  begin
+    FDevInfo.Err := '';
+    // "err":[{"e":"No fiscal printer mode"}]
+    tmpData := AData.GetObject('err');
+    if Assigned(tmpData) and (tmpData.GetStorageType() = stList) then
+    begin
+      for i := 0 to tmpData.GetCount()-1 do
+      begin
+        tmpItem := tmpData.GetObject(i);
+        if FDevInfo.Err <> '' then
+          FDevInfo.Err := FDevInfo.Err + '; ';
+        FDevInfo.Err := FDevInfo.Err + tmpItem.GetString('e');
+      end;
+    end
+    else if Assigned(tmpData) and (tmpData.GetStorageType() = stString) then
+    begin
+      // код ошибки
+      FDevInfo.Err := GetErrorCodeDescription(tmpData.GetValue());
+    end
+    else
+    begin
+      FDevInfo.Err := GetErrorCodeDescription(AData.GetString('err'));
+    end;
+  end;
+
   IsStateUpdated := True;
 end;
 
@@ -1420,6 +1679,8 @@ procedure TTitanDriver.ParseChk(AData: IDataStorage);
 var
   TmpDoc: TFrDoc;
   TmpDocType: TFrDocType;
+  i: Integer;
+  tmpData, tmpItem, tmpSubItem: IDataStorage;
 begin
   if (not Assigned(AData)) or (not AData.HaveName('id')) then Exit;
 
@@ -1472,6 +1733,48 @@ begin
   TmpDoc.DocNum := AData.GetInteger('no');
   TmpDoc.IsPending := AData.HaveName('Pending');
   TmpDoc.UID := AData.GetString('UI');
+
+  case TmpDoc.DocType of
+    frdLogin:
+    begin
+      //TmpDoc.A
+    end;
+    frdFiscal:
+    begin
+      //TmpDoc.A
+      tmpData := AData.GetObject('F');
+      if tmpData.GetStorageType() = stList then
+      begin
+        for i := 0 to tmpData.GetCount()-1 do
+        begin
+          tmpItem := tmpData.GetObject(i);
+          if tmpItem.HaveName('S') then
+          begin
+            tmpSubItem := tmpItem.GetObject('S');
+            TmpDoc.AddSale(
+              tmpSubItem.GetString('name'),
+              tmpSubItem.GetString('code'),
+              StrToCurrDef(tmpSubItem.GetString('price'), 0),
+              StrToCurrDef(tmpSubItem.GetString('qty'), 0),
+              tmpSubItem.GetInteger('tax'),
+              tmpSubItem.GetInteger('ctype'),
+              tmpSubItem.GetInteger('dep'),
+              tmpSubItem.GetInteger('grp')
+            );
+          end;
+          if tmpItem.HaveName('P') then
+          begin
+            tmpSubItem := tmpItem.GetObject('P');
+            TmpDoc.AddPayment(
+              StrToCurrDef(tmpSubItem.GetString('sum'), 0),
+              tmpSubItem.GetInteger('no'),
+              tmpSubItem.GetString('name')
+            );
+          end;
+        end;
+      end;
+    end;
+  end;
 
   DocList.Add(TmpDoc);
 end;

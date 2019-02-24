@@ -20,6 +20,16 @@ type
     actDocPrint: TAction;
     actDocAddTestNewBill: TAction;
     actDocAddTestNewOrder: TAction;
+    actFeedPaper: TAction;
+    actFiscalization: TAction;
+    actCurDocState: TAction;
+    actRegisterIP: TAction;
+    actSetClock: TAction;
+    actSknoState: TAction;
+    actPutTaxFM: TAction;
+    actPutHdrFm: TAction;
+    actOpenBox: TAction;
+    actLastReceipt: TAction;
     actReqDocs: TAction;
     actRep107: TAction;
     actRep102: TAction;
@@ -41,7 +51,15 @@ type
     btnCreateDoc: TButton;
     btnAddLine: TButton;
     btnDocPrint: TButton;
+    cbDocTextAttrW: TCheckBox;
     cbDocType: TComboBox;
+    cbDocDiscountAll: TCheckBox;
+    cbDocTextAttrH: TCheckBox;
+    edDocDiscountPrc: TLabeledEdit;
+    edDocDiscountDn: TLabeledEdit;
+    edDocText: TLabeledEdit;
+    edDocPaySum: TLabeledEdit;
+    edDocPayNo: TLabeledEdit;
     edDocSaleGrp: TLabeledEdit;
     edDocSaleDep: TLabeledEdit;
     edDocSaleTax: TLabeledEdit;
@@ -58,8 +76,15 @@ type
     edDocCorrectionCode: TLabeledEdit;
     edDocSaleCode: TLabeledEdit;
     edDocSaleName: TLabeledEdit;
+    gbCurDocState: TGroupBox;
+    edDocDiscountSum: TLabeledEdit;
+    edDocFisText: TLabeledEdit;
+    gbLastDocState: TGroupBox;
     lboxAddrList: TListBox;
     lvDocs: TListView;
+    memoLastDocState: TMemo;
+    memoCurDocState: TMemo;
+    memoSelDocInfo: TMemo;
     MemoHttpHeaders: TMemo;
     memoTestDocInfo: TMemo;
     memoDevInfo: TMemo;
@@ -73,24 +98,38 @@ type
     MenuItem16: TMenuItem;
     MenuItem17: TMenuItem;
     MenuItem18: TMenuItem;
+    MenuItem20: TMenuItem;
+    MenuItem3: TMenuItem;
+    MenuItem32: TMenuItem;
+    MenuItem6: TMenuItem;
+    miRequests: TMenuItem;
     MenuItem19: TMenuItem;
     MenuItem2: TMenuItem;
-    MenuItem20: TMenuItem;
+    miDocs: TMenuItem;
     MenuItem21: TMenuItem;
     MenuItem22: TMenuItem;
     MenuItem23: TMenuItem;
     MenuItem24: TMenuItem;
     MenuItem25: TMenuItem;
-    MenuItem3: TMenuItem;
+    MenuItem26: TMenuItem;
+    MenuItem27: TMenuItem;
+    MenuItem28: TMenuItem;
+    MenuItem29: TMenuItem;
+    MenuItem30: TMenuItem;
+    MenuItem31: TMenuItem;
+    MenuItem35: TMenuItem;
+    N1: TMenuItem;
+    miProcs: TMenuItem;
     MenuItem4: TMenuItem;
     MenuItem5: TMenuItem;
-    MenuItem6: TMenuItem;
+    miReports: TMenuItem;
     MenuItem7: TMenuItem;
     MenuItem8: TMenuItem;
     MenuItem9: TMenuItem;
     pgcDocLine: TPageControl;
     pgcMain: TPageControl;
     pmMain: TPopupMenu;
+    tsCurState: TTabSheet;
     tsDocCorrection: TTabSheet;
     tsDocVoiding: TTabSheet;
     tsDocBarcode: TTabSheet;
@@ -104,6 +143,7 @@ type
     tsDocs: TTabSheet;
     tsMain: TTabSheet;
     Timer100ms: TTimer;
+    procedure actCurDocStateExecute(Sender: TObject);
     procedure actDocAddTestNewOrderExecute(Sender: TObject);
     procedure actDiscoverExecute(Sender: TObject);
     procedure actDocAddTestIOExecute(Sender: TObject);
@@ -111,10 +151,18 @@ type
     procedure actDocAddTestSaleExecute(Sender: TObject);
     procedure actDocAddTestTextExecute(Sender: TObject);
     procedure actDocPrintExecute(Sender: TObject);
+    procedure actFeedPaperExecute(Sender: TObject);
+    procedure actFiscalizationExecute(Sender: TObject);
+    procedure actLastReceiptExecute(Sender: TObject);
+    procedure actOpenBoxExecute(Sender: TObject);
+    procedure actPutHdrFmExecute(Sender: TObject);
+    procedure actRegisterIPExecute(Sender: TObject);
     procedure actRepExecute(Sender: TObject);
     procedure actReqDevInfoExecute(Sender: TObject);
     procedure actReqDocsExecute(Sender: TObject);
     procedure actReqStatusExecute(Sender: TObject);
+    procedure actSetClockExecute(Sender: TObject);
+    procedure actSknoStateExecute(Sender: TObject);
     procedure actSound2Execute(Sender: TObject);
     procedure actSoundExecute(Sender: TObject);
     procedure btnAddLineClick(Sender: TObject);
@@ -126,6 +174,9 @@ type
     procedure gbDevInfoClick(Sender: TObject);
     procedure lboxAddrListClick(Sender: TObject);
     procedure lvDocsData(Sender: TObject; Item: TListItem);
+    procedure lvDocsSelectItem(Sender: TObject; Item: TListItem;
+      Selected: Boolean);
+    procedure pgcDocLineChange(Sender: TObject);
     procedure Timer100msTimer(Sender: TObject);
   private
     FTitanDriver: TTitanDriver;
@@ -196,6 +247,8 @@ begin
   cbDocType.AddItem('(L) копия чека или ресторанного счета', nil);
   cbDocType.AddItem('(RO) ресторанный заказ', nil);
   cbDocType.AddItem('(VB) отмена ресторанного заказа', nil);
+
+  lvDocs.DoubleBuffered := True;
 end;
 
 procedure TFormMain.actDiscoverExecute(Sender: TObject);
@@ -212,6 +265,11 @@ begin
   FTestDoc.AddNewOrder(1);
   FTestDoc.AddSale('Кофе', '3', 12);
   UpdateTestDocInfo();
+end;
+
+procedure TFormMain.actCurDocStateExecute(Sender: TObject);
+begin
+  TitanDriver.GetDocState();
 end;
 
 procedure TFormMain.actDocAddTestIOExecute(Sender: TObject);
@@ -271,6 +329,36 @@ begin
   end;
 end;
 
+procedure TFormMain.actFeedPaperExecute(Sender: TObject);
+begin
+  TitanDriver.FeedPaper();
+end;
+
+procedure TFormMain.actFiscalizationExecute(Sender: TObject);
+begin
+  TitanDriver.Fiscalization();
+end;
+
+procedure TFormMain.actLastReceiptExecute(Sender: TObject);
+begin
+  TitanDriver.LastReceipt();
+end;
+
+procedure TFormMain.actOpenBoxExecute(Sender: TObject);
+begin
+  TitanDriver.OpenBox();
+end;
+
+procedure TFormMain.actPutHdrFmExecute(Sender: TObject);
+begin
+  TitanDriver.PutHdrFM();
+end;
+
+procedure TFormMain.actRegisterIPExecute(Sender: TObject);
+begin
+  TitanDriver.RegisterWhiteIP();
+end;
+
 procedure TFormMain.actRepExecute(Sender: TObject);
 begin
   if Sender = actRep0 then
@@ -312,6 +400,16 @@ begin
   TitanDriver.GetDevState();
 end;
 
+procedure TFormMain.actSetClockExecute(Sender: TObject);
+begin
+  TitanDriver.SetClock(Now());
+end;
+
+procedure TFormMain.actSknoStateExecute(Sender: TObject);
+begin
+  TitanDriver.SknoState();
+end;
+
 procedure TFormMain.actSound2Execute(Sender: TObject);
 var
   i: Integer;
@@ -327,19 +425,52 @@ begin
 end;
 
 procedure TFormMain.btnAddLineClick(Sender: TObject);
+var
+  s: string;
 begin
   if not Assigned(FTestDoc) then Exit;
 
   if pgcDocLine.ActivePage = tsDocSale then
   begin
-    FTestDoc.AddSale(edDocSaleName.Text,
-                   edDocSaleCode.Text,
-                   StrToCurrDef(edDocSalePrice.Text, 0),
-                   StrToCurrDef(edDocSaleQty.Text, 1),
-                   StrToIntDef(edDocSaleTax.Text, -1),
-                   StrToIntDef(edDocSaleCType.Text, 1),
-                   StrToIntDef(edDocSaleDep.Text, 1),
-                   StrToIntDef(edDocSaleGrp.Text, 1));
+    FTestDoc.AddSale(
+      edDocSaleName.Text,
+      edDocSaleCode.Text,
+      StrToCurrDef(edDocSalePrice.Text, 0),
+      StrToCurrDef(edDocSaleQty.Text, 1),
+      StrToIntDef(edDocSaleTax.Text, -1),
+      StrToIntDef(edDocSaleCType.Text, 1),
+      StrToIntDef(edDocSaleDep.Text, 1),
+      StrToIntDef(edDocSaleGrp.Text, 1)
+    );
+  end
+  else if pgcDocLine.ActivePage = tsDocDiscount then
+  begin
+    FTestDoc.AddDiscount(
+      StrToCurrDef(edDocDiscountSum.Text, 0),
+      StrToCurrDef(edDocDiscountPrc.Text, 0),
+      cbDocDiscountAll.Checked,
+      StrToIntDef(edDocDiscountDn.Text, 0)
+    );
+  end
+  else if pgcDocLine.ActivePage = tsDocPayment then
+  begin
+    FTestDoc.AddPayment(
+      StrToCurrDef(edDocPaySum.Text, 0),
+      StrToIntDef(edDocPayNo.Text, 0)
+    );
+  end
+  else if pgcDocLine.ActivePage = tsDocFisText then
+  begin
+    FTestDoc.AddFiscalComment(edDocFisText.Text);
+  end
+  else if pgcDocLine.ActivePage = tsDocText then
+  begin
+    s := '';
+    if cbDocTextAttrH.Checked then
+      s := s + TEXT_ATTR_DOUBLE_HEIGHT;
+    if cbDocTextAttrW.Checked then
+      s := s + TEXT_ATTR_WIDE;
+    FTestDoc.AddText(edDocText.Text, s);
   end;
   UpdateTestDocInfo();
 end;
@@ -409,6 +540,30 @@ begin
   end;
 end;
 
+procedure TFormMain.lvDocsSelectItem(Sender: TObject; Item: TListItem;
+  Selected: Boolean);
+var
+  TmpDoc: TFrDoc;
+begin
+  if Selected and Assigned(Item) then
+  begin
+    TmpDoc := TitanDriver.DocList.GetItem(Item.Index);
+    if Assigned(TmpDoc) then
+    begin
+      TmpDoc.FillDocInfoText(memoSelDocInfo.Lines);
+    end;
+  end
+  else
+  begin
+    memoSelDocInfo.Clear();
+  end;
+end;
+
+procedure TFormMain.pgcDocLineChange(Sender: TObject);
+begin
+
+end;
+
 procedure TFormMain.Timer100msTimer(Sender: TObject);
 begin
   FTitanDriver.Tick();
@@ -445,6 +600,26 @@ begin
     memoDevInfo.Lines.Add('Err: '+ TitanDriver.DevInfo.Err);
     memoDevInfo.Lines.EndUpdate();
 
+    // расшифровка состояния текущего документа
+    memoCurDocState.Lines.BeginUpdate();
+    memoCurDocState.Lines.Clear();
+    memoCurDocState.Lines.Add('Номер оператора: ' + IntToStr(TitanDriver.CurDocInfo.OpNum));
+    memoCurDocState.Lines.Add('Начальная запись документа: ' + IntToStr(TitanDriver.CurDocInfo.DocNum));
+    memoCurDocState.Lines.Add('Начальная запись отчета: ' + IntToStr(TitanDriver.CurDocInfo.RepNum));
+    memoCurDocState.Lines.Add('--- состояние документа ---');
+    FillDocStateText(TitanDriver.CurDocInfo.DocState, memoCurDocState.Lines);
+    memoCurDocState.Lines.Add('===');
+    memoCurDocState.Lines.EndUpdate();
+
+    // расшифровка состояния последнего документа в ленте
+    memoLastDocState.Lines.BeginUpdate();
+    memoLastDocState.Lines.Clear();
+    memoLastDocState.Lines.Add('Сумма итого: ' + CurrToStr(TitanDriver.LastDocInfo.TotalSum));
+    memoLastDocState.Lines.Add('Номер документа: ' + IntToStr(TitanDriver.LastDocInfo.DocNum));
+    memoLastDocState.Lines.Add('Дата документа: ' + FormatDateTime('YYYY-MM-DD HH:NN:SS', TitanDriver.LastDocInfo.DateTime));
+    memoLastDocState.Lines.Add('Номер оператора: ' + IntToStr(TitanDriver.LastDocInfo.OpNum));
+    memoLastDocState.Lines.Add('UID: '+ TitanDriver.LastDocInfo.UID);
+    memoLastDocState.Lines.EndUpdate();
   end;
 
   if TitanDriver.IsResponseUpdated then
