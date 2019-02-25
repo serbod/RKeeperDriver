@@ -1351,6 +1351,36 @@ var
   sUsr0, sPas0, sHost, sPort, sPath, sParams: string;
   sStr, sMethod: string;
   //wPort: Word;
+
+  procedure SetHttpData();
+  begin
+    SetDefaultHeaders(FHttpSend);
+    if ARequest.Method = '' then
+      sMethod := 'GET'
+    else
+    begin
+      sMethod := ARequest.Method;
+      sStr := ARequest.RequestJson;
+      //FHttpSend.Status100 := True;
+      FHttpSend.MimeType := 'text/plain;charset=UTF-8';
+      FHttpSend.Document.Size := 0;
+      FHttpSend.Document.WriteBuffer(PAnsiChar(sStr)^, Length(sStr));
+    end;
+
+    if FSession.nonce <> '' then
+    begin
+      FHttpSend.Headers.Add('Authorization: Digest username=' + AnsiQuotedStr(sName, #34)
+      + ', realm=' + AnsiQuotedStr(FSession.realm, #34)
+      + ', nonce=' + AnsiQuotedStr(FSession.nonce, #34)
+      + ', uri=' + AnsiQuotedStr(sUri, #34)
+      + ', algorithm=MD5'
+      + ', qop=' + FSession.qop
+      + ', nc=' + FSession.nc
+      + ', cnonce=' + AnsiQuotedStr(FSession.cnonce, #34)
+      + ', response=' + AnsiQuotedStr(FSession.response, #34));
+    end;
+  end;
+
 begin
   if not Assigned(FSession) then
     FSession := TFrSession.Create();
@@ -1386,31 +1416,7 @@ begin
   LastHttpResponse := 'Waiting for result...';
 
   try
-    SetDefaultHeaders(FHttpSend);
-    if ARequest.Method = '' then
-      sMethod := 'GET'
-    else
-    begin
-      sMethod := ARequest.Method;
-      sStr := ARequest.RequestJson;
-      //FHttpSend.Status100 := True;
-      FHttpSend.MimeType := 'text/plain;charset=UTF-8';
-      FHttpSend.Document.Size := 0;
-      FHttpSend.Document.WriteBuffer(PAnsiChar(sStr)^, Length(sStr));
-    end;
-
-    if FSession.nonce <> '' then
-    begin
-      FHttpSend.Headers.Add('Authorization: Digest username=' + AnsiQuotedStr(sName, #34)
-      + ', realm=' + AnsiQuotedStr(FSession.realm, #34)
-      + ', nonce=' + AnsiQuotedStr(FSession.nonce, #34)
-      + ', uri=' + AnsiQuotedStr(sUri, #34)
-      + ', algorithm=MD5'
-      + ', qop=' + FSession.qop
-      + ', nc=' + FSession.nc
-      + ', cnonce=' + AnsiQuotedStr(FSession.cnonce, #34)
-      + ', response=' + AnsiQuotedStr(FSession.response, #34));
-    end;
+    SetHttpData();
 
     sStr := ReadStrFromStream(FHttpSend.Document, FHttpSend.Document.Size);
     StrToFile('http_req.txt', sMethod + ' ' + sUrl + sLineBreak + FHttpSend.Headers.Text + sLineBreak + sStr);
@@ -1467,29 +1473,8 @@ begin
           h3 := md5Print(md5String(h1 + ':' + FSession.nonce + ':' + FSession.nc + ':' + FSession.cnonce + ':' + FSession.qop + ':' + h2 ));
           FSession.response := h3;
 
-          SetDefaultHeaders(FHttpSend);
+          SetHttpData();
           FHttpSend.Cookies.Text := slCookies.Text;
-          if ARequest.Method = '' then
-            sMethod := 'GET'
-          else
-          begin
-            sMethod := ARequest.Method;
-            sStr := ARequest.RequestJson;
-            //FHttpSend.Status100 := True;
-            FHttpSend.MimeType := 'text/plain;charset=UTF-8';
-            FHttpSend.Document.Size := 0;
-            FHttpSend.Document.WriteBuffer(PAnsiChar(sStr)^, Length(sStr));
-          end;
-
-          FHttpSend.Headers.Add('Authorization: Digest username=' + AnsiQuotedStr(sName, #34)
-          + ', realm=' + AnsiQuotedStr(FSession.realm, #34)
-          + ', nonce=' + AnsiQuotedStr(FSession.nonce, #34)
-          + ', uri=' + AnsiQuotedStr(sUri, #34)
-          + ', algorithm=MD5'
-          + ', qop=' + FSession.qop
-          + ', nc=' + FSession.nc
-          + ', cnonce=' + AnsiQuotedStr(FSession.cnonce, #34)
-          + ', response=' + AnsiQuotedStr(FSession.response, #34));
 
           sStr := ReadStrFromStream(FHttpSend.Document, FHttpSend.Document.Size);
           StrToFile('http_req2.txt', sMethod + ' ' + sUrl + sLineBreak + FHttpSend.Headers.Text + sLineBreak + sStr);
