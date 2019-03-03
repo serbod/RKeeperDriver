@@ -150,7 +150,7 @@ type
       ACode: код товара из не более чем 13 цифр
       APrice: цена
       AQty: количество
-      ATax: номер налоговой ставки из таблицы Tax
+      ATax: номер налоговой ставки из таблицы Tax; -1 - без налога
       ACType: Тип кода товара 0-без EAN, 1-EAN, 2-услуга
       ADep: номер секции из таблицы Dep
       AGrp: номер группы из таблицы Grp
@@ -1666,6 +1666,12 @@ begin
     begin
       // код ошибки
       FDevInfo.Err := GetErrorCodeDescription(tmpData.GetValue());
+    end
+    else if Assigned(tmpData) and (tmpData.GetStorageType() = stDictionary) then
+    begin
+      FDevInfo.Err := GetErrorCodeDescription(tmpData.GetString('e'));
+      if tmpData.HaveName('line') then
+        FDevInfo.Err := FDevInfo.Err + '; line=' + tmpItem.GetString('line');
     end
     else
     begin

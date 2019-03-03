@@ -6,7 +6,7 @@ interface
 
 uses
   Classes, SysUtils, Forms, Controls, Graphics, Dialogs, ActnList, StdCtrls,
-  ExtCtrls, Menus, ComCtrls, TitanDrv;
+  ExtCtrls, Menus, ComCtrls, Spin, TitanDrv;
 
 type
 
@@ -55,8 +55,15 @@ type
     cbDocType: TComboBox;
     cbDocDiscountAll: TCheckBox;
     cbDocTextAttrH: TCheckBox;
+    edDocBarcodeWidth: TLabeledEdit;
+    edDocBarcodeFeed: TLabeledEdit;
+    edDocBarcodeHeight: TLabeledEdit;
+    edDocCashIONo: TLabeledEdit;
     edDocDiscountPrc: TLabeledEdit;
     edDocDiscountDn: TLabeledEdit;
+    edDocCashIOSum: TLabeledEdit;
+    edDocBarcodeCode: TLabeledEdit;
+    edDocBarcodeType: TLabeledEdit;
     edDocText: TLabeledEdit;
     edDocPaySum: TLabeledEdit;
     edDocPayNo: TLabeledEdit;
@@ -80,6 +87,7 @@ type
     edDocDiscountSum: TLabeledEdit;
     edDocFisText: TLabeledEdit;
     gbLastDocState: TGroupBox;
+    Label1: TLabel;
     lboxAddrList: TListBox;
     lvDocs: TListView;
     memoLastDocState: TMemo;
@@ -247,6 +255,8 @@ begin
   cbDocType.AddItem('(L) копия чека или ресторанного счета', nil);
   cbDocType.AddItem('(RO) ресторанный заказ', nil);
   cbDocType.AddItem('(VB) отмена ресторанного заказа', nil);
+
+  pgcDocLine.ActivePageIndex := 0;
 
   lvDocs.DoubleBuffered := True;
 end;
@@ -459,6 +469,13 @@ begin
       StrToIntDef(edDocPayNo.Text, 0)
     );
   end
+  else if pgcDocLine.ActivePage = tsDocCashIO then
+  begin
+    FTestDoc.AddCashIO(
+      StrToCurrDef(edDocCashIOSum.Text, 0),
+      StrToIntDef(edDocCashIONo.Text, 0)
+    );
+  end
   else if pgcDocLine.ActivePage = tsDocFisText then
   begin
     FTestDoc.AddFiscalComment(edDocFisText.Text);
@@ -471,6 +488,22 @@ begin
     if cbDocTextAttrW.Checked then
       s := s + TEXT_ATTR_WIDE;
     FTestDoc.AddText(edDocText.Text, s);
+  end
+  else if pgcDocLine.ActivePage = tsDocBarcode then
+  begin
+    FTestDoc.AddBarcode(edDocBarcodeCode.Text,
+                        StrToIntDef(edDocBarcodeType.Text, 1),
+                        StrToIntDef(edDocBarcodeWidth.Text, 2),
+                        StrToIntDef(edDocBarcodeHeight.Text, 60),
+                        StrToIntDef(edDocBarcodeHeight.Text, 20));
+  end
+  else if pgcDocLine.ActivePage = tsDocVoiding then
+  begin
+    FTestDoc.AddDocVoiding(StrToIntDef(edDocVoidingNo.Text, 0));
+  end
+  else if pgcDocLine.ActivePage = tsDocCorrection then
+  begin
+    FTestDoc.AddDocCorrection(edDocCorrectionCode.Text);
   end;
   UpdateTestDocInfo();
 end;

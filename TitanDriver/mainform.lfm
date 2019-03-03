@@ -9,15 +9,16 @@ object FormMain: TFormMain
   OnCreate = FormCreate
   OnDestroy = FormDestroy
   PopupMenu = pmMain
+  ShowHint = True
   LCLVersion = '2.0.0.4'
   object pgcMain: TPageControl
     Left = 0
     Height = 387
     Top = 0
     Width = 529
-    ActivePage = tsCurState
+    ActivePage = tsMain
     Align = alClient
-    TabIndex = 1
+    TabIndex = 0
     TabOrder = 0
     object tsMain: TTabSheet
       Caption = 'Основные свойства'
@@ -114,6 +115,15 @@ object FormMain: TFormMain
         Width = 287
         ScrollBars = ssAutoBoth
         TabOrder = 4
+      end
+      object Label1: TLabel
+        Left = 8
+        Height = 33
+        Top = 136
+        Width = 98
+        AutoSize = False
+        Caption = 'Правая кнопка'#13#10'мыши - действия'
+        ParentColor = False
       end
     end
     object tsCurState: TTabSheet
@@ -270,8 +280,8 @@ object FormMain: TFormMain
         Height = 179
         Top = 77
         Width = 212
-        ActivePage = tsDocSale
-        TabIndex = 0
+        ActivePage = tsDocCashIO
+        TabIndex = 3
         TabOrder = 5
         OnChange = pgcDocLineChange
         object tsDocSale: TTabSheet
@@ -281,6 +291,7 @@ object FormMain: TFormMain
           object edDocSaleCode: TLabeledEdit
             Left = 0
             Height = 23
+            Hint = 'код товара из не более чем 13 цифр'
             Top = 24
             Width = 80
             Alignment = taRightJustify
@@ -289,11 +300,12 @@ object FormMain: TFormMain
             EditLabel.Caption = 'Код'
             EditLabel.ParentColor = False
             TabOrder = 0
-            Text = '0'
+            Text = '1'
           end
           object edDocSaleName: TLabeledEdit
             Left = 0
             Height = 23
+            Hint = 'название товара'
             Top = 72
             Width = 192
             EditLabel.Height = 15
@@ -301,10 +313,12 @@ object FormMain: TFormMain
             EditLabel.Caption = 'Название'
             EditLabel.ParentColor = False
             TabOrder = 1
+            Text = 'тестовый товар'
           end
           object edDocSalePrice: TLabeledEdit
             Left = 88
             Height = 23
+            Hint = 'цена'
             Top = 24
             Width = 48
             Alignment = taRightJustify
@@ -313,11 +327,12 @@ object FormMain: TFormMain
             EditLabel.Caption = 'Цена'
             EditLabel.ParentColor = False
             TabOrder = 2
-            Text = '0'
+            Text = '1'
           end
           object edDocSaleQty: TLabeledEdit
             Left = 144
             Height = 23
+            Hint = 'количество'
             Top = 24
             Width = 48
             Alignment = taRightJustify
@@ -326,11 +341,12 @@ object FormMain: TFormMain
             EditLabel.Caption = 'Кол-во'
             EditLabel.ParentColor = False
             TabOrder = 3
-            Text = '0'
+            Text = '1'
           end
           object edDocSaleTax: TLabeledEdit
             Left = 56
             Height = 23
+            Hint = 'номер налоговой ставки из таблицы Tax; -1 - без налога'
             Top = 112
             Width = 40
             Alignment = taRightJustify
@@ -339,11 +355,12 @@ object FormMain: TFormMain
             EditLabel.Caption = 'Налог'
             EditLabel.ParentColor = False
             TabOrder = 4
-            Text = '0'
+            Text = '-1'
           end
           object edDocSaleDep: TLabeledEdit
             Left = 104
             Height = 23
+            Hint = 'номер секции из таблицы Dep'
             Top = 112
             Width = 40
             Alignment = taRightJustify
@@ -352,11 +369,12 @@ object FormMain: TFormMain
             EditLabel.Caption = 'Отдел'
             EditLabel.ParentColor = False
             TabOrder = 5
-            Text = '0'
+            Text = '1'
           end
           object edDocSaleGrp: TLabeledEdit
             Left = 152
             Height = 23
+            Hint = 'номер группы из таблицы Grp'
             Top = 112
             Width = 40
             Alignment = taRightJustify
@@ -365,7 +383,7 @@ object FormMain: TFormMain
             EditLabel.Caption = 'Группа'
             EditLabel.ParentColor = False
             TabOrder = 6
-            Text = '0'
+            Text = '1'
           end
           object edDocSaleCType: TLabeledEdit
             Left = 0
@@ -381,7 +399,7 @@ object FormMain: TFormMain
             ParentShowHint = False
             ShowHint = True
             TabOrder = 7
-            Text = '0'
+            Text = '1'
           end
         end
         object tsDocDiscount: TTabSheet
@@ -391,6 +409,7 @@ object FormMain: TFormMain
           object edDocDiscountSum: TLabeledEdit
             Left = 8
             Height = 23
+            Hint = 'сумма скидки или наценки, для процентных скидок = 0'
             Top = 32
             Width = 72
             Alignment = taRightJustify
@@ -398,12 +417,15 @@ object FormMain: TFormMain
             EditLabel.Width = 72
             EditLabel.Caption = 'Сумма'
             EditLabel.ParentColor = False
+            ParentShowHint = False
+            ShowHint = True
             TabOrder = 0
             Text = '0'
           end
           object edDocDiscountPrc: TLabeledEdit
             Left = 96
             Height = 23
+            Hint = 'процент скидки или наценки, если (ASum <> 0) то игнорируется'
             Top = 32
             Width = 72
             Alignment = taRightJustify
@@ -417,6 +439,7 @@ object FormMain: TFormMain
           object cbDocDiscountAll: TCheckBox
             Left = 8
             Height = 19
+            Hint = 'скидка производится на промежуточный итог'
             Top = 64
             Width = 156
             Caption = 'на промежуточный итог'
@@ -425,6 +448,7 @@ object FormMain: TFormMain
           object edDocDiscountDn: TLabeledEdit
             Left = 8
             Height = 23
+            Hint = 'номер подтверждения льготной скидки'
             Top = 112
             Width = 96
             Alignment = taRightJustify
@@ -443,6 +467,7 @@ object FormMain: TFormMain
           object edDocPaySum: TLabeledEdit
             Left = 8
             Height = 23
+            Hint = 'сумма оплаты, если 0 то оплата всего чека'
             Top = 32
             Width = 72
             Alignment = taRightJustify
@@ -456,6 +481,7 @@ object FormMain: TFormMain
           object edDocPayNo: TLabeledEdit
             Left = 104
             Height = 23
+            Hint = 'номер строки в таблице Pay, соответствующий типу оплаты. Если 0 то наличными'
             Top = 32
             Width = 72
             Alignment = taRightJustify
@@ -464,11 +490,41 @@ object FormMain: TFormMain
             EditLabel.Caption = 'Тип оплаты'
             EditLabel.ParentColor = False
             TabOrder = 1
-            Text = '0'
+            Text = '1'
           end
         end
         object tsDocCashIO: TTabSheet
           Caption = '(IO) внос/вынос'
+          ClientHeight = 151
+          ClientWidth = 204
+          object edDocCashIOSum: TLabeledEdit
+            Left = 8
+            Height = 23
+            Hint = 'Сумма внесения или изъятия. Сумма внесения должна быть положительная. Изъятия - отрицательная. '
+            Top = 32
+            Width = 72
+            Alignment = taRightJustify
+            EditLabel.Height = 15
+            EditLabel.Width = 72
+            EditLabel.Caption = 'Сумма'
+            EditLabel.ParentColor = False
+            TabOrder = 0
+            Text = '0'
+          end
+          object edDocCashIONo: TLabeledEdit
+            Left = 112
+            Height = 23
+            Hint = 'Номер строки в таблице Pay, который соответствует типу'#13#10'выбранной оплаты. При отсутствии производится внесение или'#13#10'изъятие наличных.'
+            Top = 32
+            Width = 72
+            Alignment = taRightJustify
+            EditLabel.Height = 15
+            EditLabel.Width = 72
+            EditLabel.Caption = 'Номер Pay'
+            EditLabel.ParentColor = False
+            TabOrder = 1
+            Text = '1'
+          end
         end
         object tsDocFisText: TTabSheet
           Caption = '(C) ф.текст'
@@ -477,6 +533,7 @@ object FormMain: TFormMain
           object edDocFisText: TLabeledEdit
             Left = 6
             Height = 23
+            Hint = 'строка фискального текстового комментария'
             Top = 24
             Width = 192
             EditLabel.Height = 15
@@ -494,6 +551,7 @@ object FormMain: TFormMain
           object edDocText: TLabeledEdit
             Left = 6
             Height = 23
+            Hint = 'строка нефискального комментария'
             Top = 24
             Width = 192
             EditLabel.Height = 15
@@ -522,14 +580,87 @@ object FormMain: TFormMain
         end
         object tsDocBarcode: TTabSheet
           Caption = '(BC) штрихкод'
+          ClientHeight = 151
+          ClientWidth = 204
+          object edDocBarcodeCode: TLabeledEdit
+            Left = 8
+            Height = 23
+            Hint = 'Текст штрих-кода 1-24 символа'
+            Top = 24
+            Width = 184
+            Alignment = taRightJustify
+            EditLabel.Height = 15
+            EditLabel.Width = 184
+            EditLabel.Caption = 'Штрихкод'
+            EditLabel.ParentColor = False
+            TabOrder = 0
+            Text = '0'
+          end
+          object edDocBarcodeType: TLabeledEdit
+            Left = 8
+            Height = 23
+            Hint = 'Тип штрих-кода'#13#10'1 – EAN-13 (по умолчанию)'#13#10'2 – CODE-128'#13#10'3 – CODE-39'
+            Top = 72
+            Width = 72
+            Alignment = taRightJustify
+            EditLabel.Height = 15
+            EditLabel.Width = 72
+            EditLabel.Caption = 'Тип'
+            EditLabel.ParentColor = False
+            TabOrder = 1
+            Text = '1'
+          end
+          object edDocBarcodeWidth: TLabeledEdit
+            Left = 112
+            Height = 23
+            Hint = 'Ширина символа в пикселях 2(по умолчанию),3,4'
+            Top = 72
+            Width = 72
+            Alignment = taRightJustify
+            EditLabel.Height = 15
+            EditLabel.Width = 72
+            EditLabel.Caption = 'Ширина'
+            EditLabel.ParentColor = False
+            TabOrder = 2
+            Text = '2'
+          end
+          object edDocBarcodeFeed: TLabeledEdit
+            Left = 8
+            Height = 23
+            Hint = 'Отступ до и после штрих-кода в пикселях 0-30. По умолчанию 20.'
+            Top = 120
+            Width = 72
+            Alignment = taRightJustify
+            EditLabel.Height = 15
+            EditLabel.Width = 72
+            EditLabel.Caption = 'Отступ'
+            EditLabel.ParentColor = False
+            TabOrder = 3
+            Text = '20'
+          end
+          object edDocBarcodeHeight: TLabeledEdit
+            Left = 112
+            Height = 23
+            Hint = 'Высота штрих-кода в пикселях 1-150. По умолчанию 60'
+            Top = 120
+            Width = 72
+            Alignment = taRightJustify
+            EditLabel.Height = 15
+            EditLabel.Width = 72
+            EditLabel.Caption = 'Высота'
+            EditLabel.ParentColor = False
+            TabOrder = 4
+            Text = '60'
+          end
         end
         object tsDocVoiding: TTabSheet
           Caption = '(VD) отмена'
-          ClientHeight = 95
+          ClientHeight = 151
           ClientWidth = 204
           object edDocVoidingNo: TLabeledEdit
             Left = 8
             Height = 23
+            Hint = 'Номер аннулируемого документа.'
             Top = 24
             Width = 184
             Alignment = taRightJustify
@@ -543,11 +674,12 @@ object FormMain: TFormMain
         end
         object tsDocCorrection: TTabSheet
           Caption = '(VP) коррекция'
-          ClientHeight = 95
+          ClientHeight = 151
           ClientWidth = 204
           object edDocCorrectionCode: TLabeledEdit
             Left = 7
             Height = 23
+            Hint = 'Код товара (не более чем 13 цифр).'#13#10'Отменяется первая с начала чека продажа товара с указанным кодом (если'#13#10'код не указан, то отменяется последняя операция)'#13
             Top = 28
             Width = 185
             EditLabel.Height = 15
