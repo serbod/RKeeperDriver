@@ -6,7 +6,7 @@ interface
 
 uses
   Classes, SysUtils, Forms, Controls, Graphics, Dialogs, ActnList, StdCtrls,
-  ExtCtrls, Menus, ComCtrls, Spin, TitanDrv;
+  ExtCtrls, Menus, ComCtrls, TitanDrv;
 
 type
 
@@ -23,6 +23,13 @@ type
     actFeedPaper: TAction;
     actFiscalization: TAction;
     actCurDocState: TAction;
+    actReadTableGrp: TAction;
+    actReadTableDep: TAction;
+    actReadAll: TAction;
+    actReadTableOper: TAction;
+    actReadTableTax: TAction;
+    actReadTablePay: TAction;
+    actReadTablesList: TAction;
     actRegisterIP: TAction;
     actSetClock: TAction;
     actSknoState: TAction;
@@ -73,6 +80,7 @@ type
     edDocSaleQty: TLabeledEdit;
     edDocSalePrice: TLabeledEdit;
     edDocSaleCType: TLabeledEdit;
+    gbSknoState: TGroupBox;
     gbLogin: TGroupBox;
     edAddr: TLabeledEdit;
     edLogin: TLabeledEdit;
@@ -92,6 +100,7 @@ type
     lvDocs: TListView;
     memoLastDocState: TMemo;
     memoCurDocState: TMemo;
+    memoSknoState: TMemo;
     memoSelDocInfo: TMemo;
     MemoHttpHeaders: TMemo;
     memoTestDocInfo: TMemo;
@@ -109,6 +118,15 @@ type
     MenuItem20: TMenuItem;
     MenuItem3: TMenuItem;
     MenuItem32: TMenuItem;
+    MenuItem33: TMenuItem;
+    MenuItem34: TMenuItem;
+    MenuItem36: TMenuItem;
+    MenuItem37: TMenuItem;
+    MenuItem38: TMenuItem;
+    MenuItem39: TMenuItem;
+    MenuItem40: TMenuItem;
+    MenuItem41: TMenuItem;
+    MenuItem42: TMenuItem;
     MenuItem6: TMenuItem;
     miRequests: TMenuItem;
     MenuItem19: TMenuItem;
@@ -137,6 +155,8 @@ type
     pgcDocLine: TPageControl;
     pgcMain: TPageControl;
     pmMain: TPopupMenu;
+    pmPay: TPopupMenu;
+    pmOper: TPopupMenu;
     tsCurState: TTabSheet;
     tsDocCorrection: TTabSheet;
     tsDocVoiding: TTabSheet;
@@ -164,6 +184,13 @@ type
     procedure actLastReceiptExecute(Sender: TObject);
     procedure actOpenBoxExecute(Sender: TObject);
     procedure actPutHdrFmExecute(Sender: TObject);
+    procedure actReadAllExecute(Sender: TObject);
+    procedure actReadTableDepExecute(Sender: TObject);
+    procedure actReadTableGrpExecute(Sender: TObject);
+    procedure actReadTableOperExecute(Sender: TObject);
+    procedure actReadTablePayExecute(Sender: TObject);
+    procedure actReadTablesListExecute(Sender: TObject);
+    procedure actReadTableTaxExecute(Sender: TObject);
     procedure actRegisterIPExecute(Sender: TObject);
     procedure actRepExecute(Sender: TObject);
     procedure actReqDevInfoExecute(Sender: TObject);
@@ -185,14 +212,21 @@ type
     procedure lvDocsSelectItem(Sender: TObject; Item: TListItem;
       Selected: Boolean);
     procedure pgcDocLineChange(Sender: TObject);
+    procedure pmOperPopup(Sender: TObject);
+    procedure pmPayPopup(Sender: TObject);
     procedure Timer100msTimer(Sender: TObject);
   private
     FTitanDriver: TTitanDriver;
     // Тестовый документ
     FTestDoc: TFrDoc;
+
+    FPayEdit: TObject;
     procedure SetAccount();
     // обновить расшифровку тестового чека
     procedure UpdateTestDocInfo();
+
+    procedure OnPayClick(Sender: TObject);
+    procedure OnOperClick(Sender: TObject);
   public
     property TitanDriver: TTitanDriver read FTitanDriver;
   end;
@@ -364,6 +398,64 @@ begin
   TitanDriver.PutHdrFM();
 end;
 
+procedure TFormMain.actReadAllExecute(Sender: TObject);
+begin
+  TitanDriver.ReadTable('Pay');
+  TitanDriver.ReadTable('Dep');
+  TitanDriver.ReadTable('Grp');
+  TitanDriver.ReadTable('Tax');
+  TitanDriver.ReadTable('Oper');
+  TitanDriver.GetDevInfo();
+  TitanDriver.GetDevState();
+end;
+
+procedure TFormMain.actReadTableDepExecute(Sender: TObject);
+begin
+  TitanDriver.ReadTable('Dep');
+end;
+
+procedure TFormMain.actReadTableGrpExecute(Sender: TObject);
+begin
+  TitanDriver.ReadTable('Grp');
+end;
+
+procedure TFormMain.actReadTableOperExecute(Sender: TObject);
+begin
+  TitanDriver.ReadTable('Oper');
+end;
+
+procedure TFormMain.actReadTablePayExecute(Sender: TObject);
+begin
+  TitanDriver.ReadTable('Pay');
+end;
+
+procedure TFormMain.actReadTablesListExecute(Sender: TObject);
+begin
+  TitanDriver.ReadTable('');
+end;
+
+{procedure TFormMain.actReadTablesListExecute(Sender: TObject);
+var
+  fs1, fs2: TFileStream;
+  z: TInflater;
+begin
+  fs1 := TFileStream.Create('http_result_body.z', fmOpenRead);
+  fs2 := TFileStream.Create('http_result_body.out', fmCreate);
+  z := TInflater.Create(fs1, fs2, fs1.Size);
+  try
+    z.DeCompress();
+  finally
+    z.Free();
+    fs2.Free();
+    fs1.Free();
+  end;
+end; }
+
+procedure TFormMain.actReadTableTaxExecute(Sender: TObject);
+begin
+  TitanDriver.ReadTable('Tax');
+end;
+
 procedure TFormMain.actRegisterIPExecute(Sender: TObject);
 begin
   TitanDriver.RegisterWhiteIP();
@@ -522,6 +614,8 @@ begin
     6: FTestDoc := TFrDoc.Create(frdOrder);
     7: FTestDoc := TFrDoc.Create(frdOrderCancel);
   end;
+
+
   UpdateTestDocInfo();
 end;
 
@@ -551,6 +645,7 @@ begin
   begin
     edAddr.Text := lboxAddrList.GetSelectedText;
     TitanDriver.DevAddr := edAddr.Text;
+    actReadAllExecute(nil);
   end;
 end;
 
@@ -597,6 +692,61 @@ begin
 
 end;
 
+procedure TFormMain.pmOperPopup(Sender: TObject);
+var
+  i: Integer;
+  mi: TMenuItem;
+begin
+  pmOper.Items.Clear();
+  if Assigned(TitanDriver) then
+  begin
+    mi := TMenuItem.Create(pmOper);
+    mi.Caption := 'service';
+    mi.Tag := 99;
+    mi.Name := 'miOper_99';
+    mi.OnClick := @OnOperClick;
+    pmOper.Items.Add(mi);
+
+    for i := 0 to Length(TitanDriver.OperItemList)-1 do
+    begin
+      mi := TMenuItem.Create(pmOper);
+      mi.Caption := IntToStr(TitanDriver.OperItemList[i].Id) + ' - '
+                  + TitanDriver.OperItemList[i].Name;
+      mi.Tag := i;
+      mi.Name := 'miOper_'+IntToStr(i);
+      mi.OnClick := @OnOperClick;
+      pmOper.Items.Add(mi);
+    end;
+  end;
+end;
+
+procedure TFormMain.pmPayPopup(Sender: TObject);
+var
+  i: Integer;
+  mi: TMenuItem;
+begin
+  pmPay.Items.Clear();
+  if Assigned(TitanDriver) then
+  begin
+    for i := 0 to Length(TitanDriver.PayItemList)-1 do
+    begin
+      mi := TMenuItem.Create(pmPay);
+      mi.Caption := IntToStr(TitanDriver.PayItemList[i].Id) + ' - '
+                  + TitanDriver.PayItemList[i].Name;
+      mi.Tag := i;
+      mi.Name := 'miPay_'+IntToStr(i);
+      mi.OnClick := @OnPayClick;
+      pmPay.Items.Add(mi);
+    end;
+
+    //FPayEdit := FindControlAtPosition(Mouse.CursorPos, False);
+    if pgcDocLine.ActivePage = tsDocCashIO then
+      FPayEdit := edDocCashIONo
+    else if pgcDocLine.ActivePage = tsDocPayment then
+      FPayEdit := edDocPayNo;
+  end;
+end;
+
 procedure TFormMain.Timer100msTimer(Sender: TObject);
 begin
   FTitanDriver.Tick();
@@ -629,9 +779,15 @@ begin
     memoDevInfo.Lines.Add('Есть записи в журнале: '+ BoolToStr(TitanDriver.DevInfo.IsWrk, 'Да', 'Нет'));
     memoDevInfo.Lines.Add('Фискализация режим: '+ BoolToStr(TitanDriver.DevInfo.IsFiscalization, 'Да', 'Нет'));
     memoDevInfo.Lines.Add('Фискальный режим: '+ BoolToStr(TitanDriver.DevInfo.IsFskMode, 'Да', 'Нет'));
-    memoDevInfo.Lines.Add('СКНО: '+ IntToStr(TitanDriver.DevInfo.SknoState));
+    memoDevInfo.Lines.Add('СКНО: '+ TitanDriver.GetSknoStateStr());
     memoDevInfo.Lines.Add('Err: '+ TitanDriver.DevInfo.Err);
     memoDevInfo.Lines.EndUpdate();
+
+    // расшифровка состояния СКНО
+    memoSknoState.Lines.BeginUpdate();
+    memoSknoState.Lines.Clear();
+    TitanDriver.FillSknoStateText(memoSknoState.Lines);
+    memoSknoState.Lines.EndUpdate();
 
     // расшифровка состояния текущего документа
     memoCurDocState.Lines.BeginUpdate();
@@ -677,6 +833,45 @@ begin
 
     memoTestDocInfo.Lines.Add('========');
     memoTestDocInfo.Lines.Add(DataToJson(FTestDoc.Lines));
+  end;
+end;
+
+procedure TFormMain.OnPayClick(Sender: TObject);
+var
+  n, PayId: Integer;
+  PayName: string;
+begin
+  if (Sender is TMenuItem) then
+  begin
+    n := (Sender as TMenuItem).Tag;
+    PayId := TitanDriver.PayItemList[n].Id;
+    PayName := TitanDriver.PayItemList[n].Name;
+
+    if Assigned(FPayEdit) then
+    begin
+      (FPayEdit as TCustomEdit).Text := IntToStr(PayId);
+    end;
+    FPayEdit := nil;
+  end;
+end;
+
+procedure TFormMain.OnOperClick(Sender: TObject);
+var
+  n: Integer;
+begin
+  if (Sender is TMenuItem) then
+  begin
+    n := (Sender as TMenuItem).Tag;
+    if n = 99 then
+    begin
+      edLogin.Text := 'service';
+      edPassw.Text := '751426';
+    end
+    else
+    begin
+      edLogin.Text := IntToStr(TitanDriver.OperItemList[n].Id);
+      edPassw.Text := TitanDriver.OperItemList[n].Pswd;
+    end;
   end;
 end;
 

@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CONFIG>
+  <ProjectSession>
+    <PathDelim Value="\"/>
+    <Version Value="11"/>
+    <BuildModes Active="Default"/>
+    <Units Count="7">
+      <Unit0>
+        <Filename Value="UFRTesting.pas"/>
+        <IsPartOfProject Value="True"/>
+        <IsVisibleTab Value="True"/>
+        <TopLine Value="714"/>
+        <CursorPos X="38" Y="735"/>
+        <UsageCount Value="28"/>
+        <Loaded Value="True"/>
+        <DefaultSyntaxHighlighter Value="Delphi"/>
+      </Unit0>
+      <Unit1>
+        <Filename Value="ufrtypes.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="UfrTypes"/>
+        <EditorIndex Value="3"/>
+        <TopLine Value="76"/>
+        <CursorPos X="62" Y="139"/>
+        <UsageCount Value="28"/>
+        <Loaded Value="True"/>
+        <DefaultSyntaxHighlighter Value="Delphi"/>
+      </Unit1>
+      <Unit2>
+        <Filename Value="ufrxmltoolsfp.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="UfrXmlToolsFp"/>
+        <UsageCount Value="28"/>
+        <DefaultSyntaxHighlighter Value="Delphi"/>
+      </Unit2>
+      <Unit3>
+        <Filename Value="..\UFRCommon.pas"/>
+        <UsageCount Value="21"/>
+        <DefaultSyntaxHighlighter Value="Delphi"/>
+      </Unit3>
+      <Unit4>
+        <Filename Value="titandrv.pas"/>
+        <UnitName Value="TitanDrv"/>
+        <EditorIndex Value="-1"/>
+        <TopLine Value="1300"/>
+        <CursorPos X="101" Y="1317"/>
+        <UsageCount Value="12"/>
+        <DefaultSyntaxHighlighter Value="Delphi"/>
+      </Unit4>
+      <Unit5>
+        <Filename Value="C:\lazarus\fpc\3.0.4\source\packages\winunits-base\src\activex.pp"/>
+        <UnitName Value="ActiveX"/>
+        <EditorIndex Value="2"/>
+        <TopLine Value="4453"/>
+        <CursorPos X="21" Y="4469"/>
+        <UsageCount Value="10"/>
+        <Loaded Value="True"/>
+      </Unit5>
+      <Unit6>
+        <Filename Value="..\TitanDriver\titandrv.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="TitanDrv"/>
+        <EditorIndex Value="1"/>
+        <TopLine Value="14"/>
+        <CursorPos X="25" Y="19"/>
+        <UsageCount Value="20"/>
+        <Loaded Value="True"/>
+        <DefaultSyntaxHighlighter Value="Delphi"/>
+      </Unit6>
+    </Units>
+    <JumpHistory Count="3" HistoryIndex="2">
+      <Position1>
+        <Filename Value="UFRTesting.pas"/>
+        <Caret Line="22" Column="42" TopLine="3"/>
+      </Position1>
+      <Position2>
+        <Filename Value="UFRTesting.pas"/>
+        <Caret Line="776" Column="14" TopLine="753"/>
+      </Position2>
+      <Position3>
+        <Filename Value="UFRTesting.pas"/>
+        <Caret Line="778" Column="20" TopLine="764"/>
+      </Position3>
+    </JumpHistory>
+    <RunParams>
+      <FormatVersion Value="2"/>
+      <Modes Count="0" ActiveMode=""/>
+    </RunParams>
+  </ProjectSession>
+</CONFIG>

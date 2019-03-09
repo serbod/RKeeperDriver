@@ -62,6 +62,7 @@ object FormMain: TFormMain
           EditLabel.Width = 160
           EditLabel.Caption = 'Логин'
           EditLabel.ParentColor = False
+          PopupMenu = pmOper
           TabOrder = 1
           Text = '1'
           OnEditingDone = edLoginEditingDone
@@ -75,6 +76,7 @@ object FormMain: TFormMain
           EditLabel.Width = 160
           EditLabel.Caption = 'Пароль'
           EditLabel.ParentColor = False
+          PopupMenu = pmOper
           TabOrder = 2
           Text = '1111'
         end
@@ -146,21 +148,22 @@ object FormMain: TFormMain
           Width = 226
           Align = alClient
           BorderSpacing.Around = 4
+          ScrollBars = ssAutoVertical
           TabOrder = 0
         end
       end
       object gbLastDocState: TGroupBox
         Left = 249
-        Height = 163
-        Top = 13
+        Height = 144
+        Top = 8
         Width = 247
         Caption = 'Состояние последнего документа'
-        ClientHeight = 143
+        ClientHeight = 124
         ClientWidth = 243
         TabOrder = 1
         object memoLastDocState: TMemo
           Left = 4
-          Height = 135
+          Height = 116
           Top = 4
           Width = 235
           Align = alClient
@@ -168,6 +171,29 @@ object FormMain: TFormMain
           Lines.Strings = (
             'memoLastDocState'
           )
+          TabOrder = 0
+        end
+      end
+      object gbSknoState: TGroupBox
+        Left = 249
+        Height = 184
+        Top = 160
+        Width = 247
+        Caption = 'Состояние СКНО'
+        ClientHeight = 164
+        ClientWidth = 243
+        TabOrder = 2
+        object memoSknoState: TMemo
+          Left = 4
+          Height = 156
+          Top = 4
+          Width = 235
+          Align = alClient
+          BorderSpacing.Around = 4
+          Lines.Strings = (
+            'memoLastDocState'
+          )
+          ScrollBars = ssAutoVertical
           TabOrder = 0
         end
       end
@@ -280,8 +306,8 @@ object FormMain: TFormMain
         Height = 179
         Top = 77
         Width = 212
-        ActivePage = tsDocCashIO
-        TabIndex = 3
+        ActivePage = tsDocDiscount
+        TabIndex = 1
         TabOrder = 5
         OnChange = pgcDocLineChange
         object tsDocSale: TTabSheet
@@ -489,6 +515,7 @@ object FormMain: TFormMain
             EditLabel.Width = 72
             EditLabel.Caption = 'Тип оплаты'
             EditLabel.ParentColor = False
+            PopupMenu = pmPay
             TabOrder = 1
             Text = '1'
           end
@@ -522,6 +549,7 @@ object FormMain: TFormMain
             EditLabel.Width = 72
             EditLabel.Caption = 'Номер Pay'
             EditLabel.ParentColor = False
+            PopupMenu = pmPay
             TabOrder = 1
             Text = '1'
           end
@@ -694,7 +722,7 @@ object FormMain: TFormMain
     end
   end
   object alMain: TActionList
-    left = 41
+    left = 40
     top = 133
     object actDiscover: TAction
       Caption = 'Поиск ФР'
@@ -859,6 +887,40 @@ object FormMain: TFormMain
       Caption = 'Регистрация "белого" IP'
       OnExecute = actRegisterIPExecute
     end
+    object actReadTablesList: TAction
+      Category = 'Tables'
+      Caption = 'Прочитать описание всех таблиц'
+      OnExecute = actReadTablesListExecute
+    end
+    object actReadTablePay: TAction
+      Category = 'Tables'
+      Caption = 'Прочитать таблицу Pay'
+      OnExecute = actReadTablePayExecute
+    end
+    object actReadTableTax: TAction
+      Category = 'Tables'
+      Caption = 'Прочитать таблицу Tax'
+      OnExecute = actReadTableTaxExecute
+    end
+    object actReadTableOper: TAction
+      Category = 'Tables'
+      Caption = 'Прочитать таблицу Oper'
+      OnExecute = actReadTableOperExecute
+    end
+    object actReadAll: TAction
+      Caption = 'Прочитать все данные'
+      OnExecute = actReadAllExecute
+    end
+    object actReadTableDep: TAction
+      Category = 'Tables'
+      Caption = 'Прочитать таблицу Dep'
+      OnExecute = actReadTableDepExecute
+    end
+    object actReadTableGrp: TAction
+      Category = 'Tables'
+      Caption = 'Прочитать таблицу Grp'
+      OnExecute = actReadTableGrpExecute
+    end
   end
   object Timer100ms: TTimer
     Interval = 100
@@ -871,6 +933,9 @@ object FormMain: TFormMain
     top = 24
     object MenuItem2: TMenuItem
       Action = actReqStatus
+    end
+    object MenuItem42: TMenuItem
+      Action = actReadAll
     end
     object miProcs: TMenuItem
       Caption = 'Команды'
@@ -983,5 +1048,39 @@ object FormMain: TFormMain
         Action = actDocPrint
       end
     end
+    object MenuItem33: TMenuItem
+      Caption = 'Таблицы'
+      object MenuItem34: TMenuItem
+        Action = actReadTablesList
+      end
+      object MenuItem36: TMenuItem
+        Caption = '-'
+      end
+      object MenuItem37: TMenuItem
+        Action = actReadTablePay
+      end
+      object MenuItem38: TMenuItem
+        Action = actReadTableTax
+      end
+      object MenuItem39: TMenuItem
+        Action = actReadTableDep
+      end
+      object MenuItem40: TMenuItem
+        Action = actReadTableGrp
+      end
+      object MenuItem41: TMenuItem
+        Action = actReadTableOper
+      end
+    end
+  end
+  object pmPay: TPopupMenu
+    OnPopup = pmPayPopup
+    left = 310
+    top = 111
+  end
+  object pmOper: TPopupMenu
+    OnPopup = pmOperPopup
+    left = 312
+    top = 184
   end
 end

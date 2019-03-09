@@ -12,7 +12,7 @@ unit TitanDrv;
 interface
 
 uses
-  Classes, SysUtils, DataStorage, synsock, blcksock, httpsend;
+  Classes, SysUtils, DataStorage, synsock, blcksock, httpsend, Zipper;
 
 const
   { типы отчетов с БЭП }
@@ -270,6 +270,39 @@ type
     FreeCount: Integer;
   end;
 
+  { Элемент таблицы Pay }
+  TFrPayItem = record
+    Id: Integer;
+    Name: string;
+    Param: Integer;
+    cParam: Integer;
+  end;
+
+  TFrPayItemList = array of TFrPayItem;
+
+  { Элемент таблицы Tax }
+  TFrTaxItem = record
+    Id: Integer;
+    Name: string;
+    Prc: Currency;
+  end;
+
+  TFrTaxItemList = array of TFrTaxItem;
+
+  TFrOperItem = record
+    Id: Integer;
+    Name: string;
+    Pswd: string;
+  end;
+  TFrOperItemList = array of TFrOperItem;
+
+  TFrIdNameItem = record
+    Id: Integer;
+    Name: string;
+  end;
+
+  TFrIdNameList = array of TFrIdNameItem;
+
   { TTitanDriver }
 
   TTitanDriver = class(TComponent)
@@ -293,6 +326,12 @@ type
 
     FFmRoomInfo: TFrRecListInfo;
     FJrnRoomInfo: TFrRecListInfo;
+
+    FPayItemList: TFrPayItemList;
+    FTaxItemList: TFrTaxItemList;
+    FGrpItemList: TFrIdNameList;
+    FDepItemList: TFrIdNameList;
+    FOperItemList: TFrOperItemList;
 
     procedure SendAuth(ARequest: TFrRequest);
 
@@ -338,6 +377,10 @@ type
     procedure SetClock(ADateTime: TDateTime);
     { состояние модуля СКНО }
     procedure SknoState();
+    { краткая расшифровка состояния СКНО }
+    function GetSknoStateStr(): string;
+    { подробная расшифровка состояния СКНО }
+    procedure FillSknoStateText(sl: TStrings);
     { звуковой сигнал
       ALen - длительность (мс)
       AFreq - частота (Гц) }
@@ -357,6 +400,9 @@ type
     { регистрация текущего IP отправителя в списке "белых", для которых не требуется авторизация
       AIsClear - отменить имеющуюся регистрацию }
     procedure RegisterWhiteIP(AIsClear: Boolean = False);
+
+    { Чтение таблицы }
+    procedure ReadTable(ATableName: string);
 
     { Запустить обнаружение ФР в сети }
     procedure Discover();
@@ -382,6 +428,12 @@ type
 
     property AddrList: TStringList read FFrAddrList;
     property DocList: TFrDocList read FDocList;
+
+    property PayItemList: TFrPayItemList read FPayItemList;
+    property TaxItemList: TFrTaxItemList read FTaxItemList;
+    property GrpItemList: TFrIdNameList read FGrpItemList;
+    property DepItemList: TFrIdNameList read FDepItemList;
+    property OperItemList: TFrOperItemList read FOperItemList;
   end;
 
   function DataToJson(AData: IDataStorage): string;
@@ -524,6 +576,9 @@ const
   REQ_TYPE_TBL_HDR     = $1B; // /cgi/tbl/Hdr
   REQ_TYPE_TBL_ADM     = $1C; // /cgi/tbl/Adm
   REQ_TYPE_TBL_FLG     = $1D; // /cgi/tbl/Flg
+  REQ_TYPE_TBL_PLU     = $1E; // /cgi/tbl/PLU
+  REQ_TYPE_TBL_DEP     = $1F; // /cgi/tbl/Dep
+  REQ_TYPE_TBL_GRP     = $71; // /cgi/tbl/Grp
   // процедуры
   REQ_TYPE_PRINTREPORT   = $21; // /cgi/proc/printreport
   REQ_TYPE_PRINTFMREPORT = $22; // /cgi/proс/printfmreport
@@ -541,8 +596,9 @@ const
   REQ_TYPE_PROC_STATE    = $2E; // /cgi/proc/state
   REQ_TYPE_REGISTER      = $2F; // /cgi/proc/register
   // отчеты
-  REQ_TYPE_REP_PAY     = $31; // /cgi/rep/pay
+  REQ_TYPE_REP_PAY       = $31; // /cgi/rep/pay
   //REQ_TYPE_            = $00; // /cgi/
+
 
 function DataToJson(AData: IDataStorage): string;
 var
@@ -822,6 +878,8 @@ var
 begin
   if FDocType in [frdFiscal, frdRefund, frdOrder] then
   begin
+    if Length(AName) > 32 then
+      SetLength(AName, 32);
     dsItem := TDataStorage.Create(stDictionary);
     if AQty <> 1 then
       dsItem.SetValue(AQty, 'qty');
@@ -1287,6 +1345,98 @@ begin
   SendRequest(REQ_TYPE_SKNOSTATE, '/cgi/proc/sknostate', '');
 end;
 
+function TTitanDriver.GetSknoStateStr(): string;
+var
+  i, n: Integer;
+  s: string;
+begin
+  n := FDevInfo.SknoState;
+  Result := '';
+  for i := 0 to 15 do
+  begin
+    s := '';
+    if (n and $1) <> 0 then
+    begin
+      case i of
+        0: s := s + 'занят';     // Занят / Свободен
+        //1: s := s + 'крипто';    // Средство криптографической защиты информации, есть «1»/нет«0»
+        //2: s := s + 'связь';     // Соединение с сервером, есть «1»/нет «0»
+        3: s := s + 'просрочен серт.';  // Запрет обслуживания по окончанию сертификата средства криптографической защиты информации, есть «1»/нет «0»
+        4: s := s + 'не передан Z';     // Запрет обслуживания по не переданным суточным (сменным) отчетам (Z-отчетам), есть «1»/нет«0»
+        5: s := s + 'переполнен';    // Запрет обслуживания по переполнению памяти СКНО, есть «1»/нет «0»
+        //6: s := s + 'ID OK';       // Идентификация прошла успешно, да «1»/нет «0»
+        7: s := s + 'смена открыта';     // Смена открыта, да «1»/нет «0»
+
+        8: s := s + 'не заверш.';     // Не завершена процедура по переданному документу, да «1»/нет «0»
+        9: s := s + 'отпр. до-ты';     // Наличие в памяти СКНО не переданных документов да «1»/нет «0»
+        //10: s := s + 'резерв';     // резерв
+      end;
+    end
+    else
+    begin
+      case i of
+        0: s := s + 'занят';     // Занят / Свободен
+        1: s := s + 'нет крипто';    // Средство криптографической защиты информации, есть «1»/нет«0»
+        2: s := s + 'нет связи';     // Соединение с сервером, есть «1»/нет «0»
+        6: s := s + 'нет ID';       // Идентификация прошла успешно, да «1»/нет «0»
+        7: s := s + 'смена закрыта';     // Смена открыта, да «1»/нет «0»
+      end;
+    end;
+    if s <> '' then
+    begin
+      if Result <> '' then
+        Result := Result + '; ';
+      Result := Result + s;
+    end;
+    n := n shr 1;
+  end;
+end;
+
+procedure TTitanDriver.FillSknoStateText(sl: TStrings);
+var
+  i, n: Integer;
+begin
+  if not Assigned(sl) then Exit;
+
+  n := FDevInfo.SknoState;
+  for i := 0 to 15 do
+  begin
+    if (n and $1) <> 0 then
+    begin
+      case i of
+        0: sl.Add('СКНО занят');     // Занят / Свободен
+        //1: sl.Add('(ОК) Криптозащита');    // Средство криптографической защиты информации, есть «1»/нет«0»
+        //2: sl.Add('(ОК) Связь с сервером');     // Соединение с сервером, есть «1»/нет «0»
+        3: sl.Add('(!!) просрочен сертификат');  // Запрет обслуживания по окончанию сертификата средства криптографической защиты информации, есть «1»/нет «0»
+        4: sl.Add('(!!) не передан Z-отчет(ы)');     // Запрет обслуживания по не переданным суточным (сменным) отчетам (Z-отчетам), есть «1»/нет«0»
+        5: sl.Add('(!!) переполнена память');    // Запрет обслуживания по переполнению памяти СКНО, есть «1»/нет «0»
+        //6: sl.Add('(ОК) идентификация успешна');       // Идентификация прошла успешно, да «1»/нет «0»
+        7: sl.Add('Смена открыта');     // Смена открыта, да «1»/нет «0»
+
+        8: sl.Add('Не завершена передача док-а');     // Не завершена процедура по переданному документу, да «1»/нет «0»
+        9: sl.Add('Есть неотправленные док-ы');     // Наличие в памяти СКНО не переданных документов да «1»/нет «0»
+        //10: Result := Result + 'резерв';     // резерв
+      end;
+    end
+    else
+    begin
+      case i of
+        0: sl.Add('СКНО свободен');     // Занят / Свободен
+        1: sl.Add('(!!) Отсутствует криптозащита');
+        2: sl.Add('(!!) Отсутствует связь с сервером');
+        //3: sl.Add('(ОК) Сертификат действителен');
+        //4: sl.Add('(ОК) Z-отчеты отправлены');
+        //5: sl.Add('(ОК) свободная память');
+        6: sl.Add('(!!) Идентификация не состоялась');
+        7: sl.Add('Смена не открыта');
+        //8: sl.Add('(ОК) Передача док-та завершена');
+        //9: sl.Add('(ОК) Все док-ты отправлены');
+      end;
+    end;
+    n := n shr 1;
+  end;
+end;
+
 procedure TTitanDriver.Sound(ALen, AFreq: Integer);
 begin
   SendRequest(REQ_TYPE_SOUND, '/cgi/proc/sound?' + IntToStr(ALen) + '&' + IntToStr(AFreq), '');
@@ -1342,6 +1492,29 @@ begin
     SendRequest(REQ_TYPE_REGISTER, '/cgi/proc/register?clear', '');
 end;
 
+procedure TTitanDriver.ReadTable(ATableName: string);
+begin
+  case ATableName of
+    '':        SendRequest(REQ_TYPE_TBL, '/cgi/tbl', '');
+    'whiteIP': SendRequest(REQ_TYPE_TBL_WHITEIP, '/cgi/tbl/whiteIP', '');
+    'Oper':    SendRequest(REQ_TYPE_TBL_OPER, '/cgi/tbl/Oper', '');
+    'Tax':     SendRequest(REQ_TYPE_TBL_TAX, '/cgi/tbl/Tax', '');
+    'Fsk':     SendRequest(REQ_TYPE_TBL_FSK, '/cgi/tbl/Fsk', '');
+    'FDay':    SendRequest(REQ_TYPE_TBL_FDAY, '/cgi/tbl/FDay', '');
+    'FTax':    SendRequest(REQ_TYPE_TBL_FTAX, '/cgi/tbl/FTax', '');
+    'FSbr':    SendRequest(REQ_TYPE_TBL_FSBR, '/cgi/tbl/FSbr', '');
+    'TCP':     SendRequest(REQ_TYPE_TBL_TCP, '/cgi/tbl/TCP', '');
+    'SysLog':  SendRequest(REQ_TYPE_TBL_SYSLOG, '/cgi/tbl/SysLog', '');
+    'Pay':     SendRequest(REQ_TYPE_TBL_PAY, '/cgi/tbl/Pay', '');
+    'Hdr':     SendRequest(REQ_TYPE_TBL_HDR, '/cgi/tbl/Hdr', '');
+    'Adm':     SendRequest(REQ_TYPE_TBL_ADM, '/cgi/tbl/Adm', '');
+    'Flg':     SendRequest(REQ_TYPE_TBL_FLG, '/cgi/tbl/Flg', '');
+    'PLU':     SendRequest(REQ_TYPE_TBL_PLU, '/cgi/tbl/PLU', '');
+    'Dep':     SendRequest(REQ_TYPE_TBL_DEP, '/cgi/tbl/Dep', '');
+    'Grp':     SendRequest(REQ_TYPE_TBL_GRP, '/cgi/tbl/Grp', '');
+  end;
+end;
+
 procedure TTitanDriver.SendAuth(ARequest: TFrRequest);
 var
   slHeaders, slCookies: TStringList;
@@ -1350,6 +1523,8 @@ var
   h1, h2, h3, sProt, sName, sPwd, sURI, sUrl: string;
   sUsr0, sPas0, sHost, sPort, sPath, sParams: string;
   sStr, sMethod: string;
+  Inflater: TInflater;
+  InflatedData: TMemoryStream;
   //wPort: Word;
 
   procedure SetHttpData();
@@ -1488,7 +1663,21 @@ begin
     if IsOk then
     begin
       FHttpSend.Document.Seek(0,0);
-      ARequest.ResultJson := ReadStrFromStream(FHttpSend.Document, FHttpSend.Document.Size);
+      if FHttpSend.Headers.IndexOf('Content-Encoding: deflate') > 0 then
+      begin
+        // compressed result
+        InflatedData := TMemoryStream.Create();
+        Inflater := TInflater.Create(FHttpSend.Document, InflatedData, 2048);
+        try
+          Inflater.DeCompress();
+          ARequest.ResultJson := ReadStrFromStream(InflatedData, InflatedData.Size);
+        finally
+          Inflater.Free();
+          InflatedData.Free();;
+        end;
+      end
+      else
+        ARequest.ResultJson := ReadStrFromStream(FHttpSend.Document, FHttpSend.Document.Size);
       StrToFile('doc_body.json', ARequest.ResultJson);
     end;
     ARequest.ResultHeaders := IntToStr(FHttpSend.ResultCode) + ' ' + FHttpSend.ResultString + sLineBreak + FHttpSend.Headers.Text;
@@ -1645,12 +1834,87 @@ begin
         end;
       end;
     end;
+
+    REQ_TYPE_TBL_PAY:
+    begin
+      if AData.GetStorageType() = stList then
+      begin
+        SetLength(FPayItemList, AData.GetCount());
+        for i := 0 to AData.GetCount()-1 do
+        begin
+          tmpItem := AData.GetObject(i);
+          FPayItemList[i].Id := tmpItem.GetInteger('id');
+          FPayItemList[i].Param := tmpItem.GetInteger('Param');
+          FPayItemList[i].cParam := tmpItem.GetInteger('cParam');
+          FPayItemList[i].Name := tmpItem.GetString('Name');
+        end;
+      end;
+    end;
+
+    REQ_TYPE_TBL_TAX:
+    begin
+      if AData.GetStorageType() = stList then
+      begin
+        SetLength(FTaxItemList, AData.GetCount());
+        for i := 0 to AData.GetCount()-1 do
+        begin
+          tmpItem := AData.GetObject(i);
+          FTaxItemList[i].Id := tmpItem.GetInteger('id');
+          FTaxItemList[i].Prc := StrToCurrDef(tmpItem.GetString('Prc'), 0);
+          FTaxItemList[i].Name := tmpItem.GetString('TaxName');
+        end;
+      end;
+    end;
+
+    REQ_TYPE_TBL_DEP:
+    begin
+      if AData.GetStorageType() = stList then
+      begin
+        SetLength(FDepItemList, AData.GetCount());
+        for i := 0 to AData.GetCount()-1 do
+        begin
+          tmpItem := AData.GetObject(i);
+          FDepItemList[i].Id := tmpItem.GetInteger('id');
+          FDepItemList[i].Name := tmpItem.GetString('Name');
+        end;
+      end;
+    end;
+
+    REQ_TYPE_TBL_GRP:
+    begin
+      if AData.GetStorageType() = stList then
+      begin
+        SetLength(FGrpItemList, AData.GetCount());
+        for i := 0 to AData.GetCount()-1 do
+        begin
+          tmpItem := AData.GetObject(i);
+          FGrpItemList[i].Id := tmpItem.GetInteger('id');
+          FGrpItemList[i].Name := tmpItem.GetString('Name');
+        end;
+      end;
+    end;
+
+    REQ_TYPE_TBL_OPER:
+    begin
+      if AData.GetStorageType() = stList then
+      begin
+        SetLength(FOperItemList, AData.GetCount());
+        for i := 0 to AData.GetCount()-1 do
+        begin
+          tmpItem := AData.GetObject(i);
+          FOperItemList[i].Id := tmpItem.GetInteger('id');
+          FOperItemList[i].Name := tmpItem.GetString('Name');
+          FOperItemList[i].Pswd := tmpItem.GetString('Pswd');
+        end;
+      end;
+    end;
   end;
 
   if AData.HaveName('err') then
   begin
     FDevInfo.Err := '';
     // "err":[{"e":"No fiscal printer mode"}]
+    // {"err":{"e":"xC9","line":0}}
     tmpData := AData.GetObject('err');
     if Assigned(tmpData) and (tmpData.GetStorageType() = stList) then
     begin
@@ -1671,7 +1935,7 @@ begin
     begin
       FDevInfo.Err := GetErrorCodeDescription(tmpData.GetString('e'));
       if tmpData.HaveName('line') then
-        FDevInfo.Err := FDevInfo.Err + '; line=' + tmpItem.GetString('line');
+        FDevInfo.Err := FDevInfo.Err + '; line=' + tmpData.GetString('line');
     end
     else
     begin
@@ -1881,7 +2145,7 @@ begin
     begin
       // разбор ответа
       TmpData := JsonToData(TmpReq.ResultJson);
-      if not Assigned(TmpData) then
+      if Assigned(TmpData) then
       begin
         ParseReqResult(TmpReq.RequestType, TmpData);
       end;
